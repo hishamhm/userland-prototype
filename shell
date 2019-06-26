@@ -1,0 +1,132 @@
+#!./lua
+
+local gr = require("gr")
+local unistd = require("posix.unistd")
+local poll = require("posix.poll")
+
+gr.init()
+
+local scroll = gr.in_root(gr.vbox({ x = 0, y = 0, padding = 9, fill = 0x000000 }, {}))
+
+local pipes = {}
+local add_prompt
+
+local function text_on_key(self, key, is_text)
+   if key == "Backspace" then
+      self:backspace()
+      return true
+   elseif key == "Return" then
+      if #self.text > 0 then
+         local fds = {}
+         fds.stdout_r, fds.stdout_w = unistd.pipe()
+         fds.stderr_r, fds.stderr_w = unistd.pipe()
+         pipes[#scroll.children] = fds
+         local childpid = unistd.fork()
+         if childpid == 0 then
+            -- child process
+            unistd.close(fds.stdout_r)
+            unistd.close(fds.stderr_r)
+            unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
+            unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
+            os.execute(self.text)
+            os.exit(0)
+         else
+            add_prompt()
+         end
+      end
+      return true
+   elseif key == "Left" then
+      self:cursor_left()
+      return true
+   elseif key == "Right" then
+      self:cursor_right()
+      return true
+   elseif is_text then
+      self:add(key)
+      return true
+   end
+end
+
+add_prompt = function()
+   local text = gr.text("", {
+      show_cursor = true,
+      on_key = text_on_key,
+   })
+   local window = gr.vbox({ min_w = 780, padding = 4, fill = 0x333333, border = 0x00ffff }, {
+      text
+   })
+   gr.set_focus(text)
+   scroll:add_child(window)
+   --table.insert(scroll.children, window)
+end
+
+add_prompt()
+
+local fullscreen = false
+
+gr.on_key(function(key, is_text, is_repeat)
+   --print(key)
+   if key == "Escape" then
+      gr.quit()
+   elseif key == "Ctrl L" then
+      scroll.children = {}
+      add_prompt()
+   elseif key == "Ctrl F" and not is_repeat then
+      fullscreen = not fullscreen
+      gr.fullscreen(fullscreen)
+   end
+end)
+
+gr.on_mouse_drag(function(x, y)
+end)
+
+local TEXT_W = 760
+
+gr.run(function()
+   for i, fds in pairs(pipes) do
+      local data = poll.rpoll(fds.stdout_r, 0)
+      if data == 1 then
+         local win = scroll.children[i]
+         local list
+         if #win.children == 1 then
+            local list = gr.vbox({ min_w = 770, max_h = 200, padding = 4, fill = 0x000000, border = 0x00ffff }, {
+            })
+            --win:add_child(list)
+            table.insert(win.children, list)
+         else
+            list = win.children[2]
+         end
+         if list then
+            for line in unistd.read(fds.stdout_r, 1024):gmatch("[^\n]+") do
+               --list:add_child(list, (gr.text(line, { max_w = TEXT_W })))
+               table.insert(list.children, (gr.text(line, { max_w = TEXT_W })))
+            end
+            list:resize()
+            win:resize()
+         end
+      end
+
+      data = poll.rpoll(fds.stderr_r, 0)
+      if data == 1 then
+         local win = scroll.children[i]
+         local list
+         if #win.children == 1 then
+            local list = gr.vbox({ min_w = 770, max_h = 200, padding = 4, fill = 0x000000, border = 0x00ffff }, {
+            })
+            -- TODO add_child
+            table.insert(win.children, list)
+         else
+            list = win.children[2]
+         end
+         if list then
+            -- FIXME correct handling of linebreaks
+            for line in unistd.read(fds.stderr_r, 1024):gmatch("[^\n]+") do
+               -- TODO add_child
+               table.insert(list.children, (gr.text(line, { max_w = TEXT_W, color = 0xff7777 })))
+            end
+            list:resize()
+            win:resize()
+         end
+      end
+   end
+end)
