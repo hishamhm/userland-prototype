@@ -502,6 +502,8 @@ local function objects_under_mouse(obj, off, rets)
    if obj.children then
       for _, child in ipairs(obj.children) do
          local offchild = offset(child, off)
+         offchild.y = offchild.y - (child.scroll_v or 0)
+         offchild.x = offchild.x - (child.scroll_h or 0)
          if SDL.pointInRect(p, offchild) then
             objects_under_mouse(child, offchild, rets)
          end
@@ -543,6 +545,14 @@ function ui.run(frame)
             focus = objs[1]
             update = true
             --on_mouse_drag_cb(e.x, e.y)
+         elseif e.type == SDL.event.MouseButtonUp then
+            local objs = objects_under_mouse()
+            for _, obj in ipairs(objs) do
+               if obj.on_click then
+                  obj:on_click()
+                  break
+               end
+            end
          elseif e.type == SDL.event.MouseWheel then
             local objs = objects_under_mouse()
             for _, obj in ipairs(objs) do
