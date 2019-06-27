@@ -172,6 +172,33 @@ local function crop(obj)
    end
 end
 
+local function text_on_key(self, key, is_text)
+   if key == "Backspace" then
+      self:backspace()
+      self:resize()
+      return true
+   elseif key == "Return" then
+      if self.eval then
+         self:eval(self.text)
+         return true
+      end
+   elseif key == "Left" then
+      self:cursor_left()
+      return true
+   elseif key == "Right" then
+      self:cursor_right()
+      return true
+   elseif is_text then
+      self:add(key)
+      self:resize()
+      return true
+   else
+      if self.on_key_cb then
+         return self:on_key_cb(key, is_text)
+      end
+   end
+end
+
 local function text_resize(self)
    self.w, self.h = font_size(self.text)
 
@@ -191,10 +218,12 @@ function ui.text(text, flags)
       max_h = flags.max_h,
       min_w = flags.min_w,
       min_h = flags.min_h,
-      on_key = flags.on_key,
       editable = flags.editable,
-      cursor = 0,
       color = flags.color or 0xFFFFFF,
+      eval = flags.eval,
+      on_key_cb = flags.on_key,
+
+      cursor = 0,
       text = text,
       render = text_render,
       add = text_add,
@@ -203,6 +232,7 @@ function ui.text(text, flags)
       backspace = text_backspace,
       calc_cursor_x = text_calc_cursor_x,
       resize = text_resize,
+      on_key = text_on_key,
    }
    obj:resize()
    return obj

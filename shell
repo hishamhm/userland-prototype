@@ -11,48 +11,31 @@ local history = ui.in_root(ui.vbox({ name = "history", margin = 10, spacing = 4,
 local pipes = {}
 local add_prompt
 
-local function text_on_key(self, key, is_text)
-   if key == "Backspace" then
-      self:backspace()
-      self:resize()
-      return true
-   elseif key == "Return" then
-      if #self.text > 0 then
-         local fds = {}
-         fds.stdout_r, fds.stdout_w = unistd.pipe()
-         fds.stderr_r, fds.stderr_w = unistd.pipe()
-         pipes[#history.children] = fds
-         local childpid = unistd.fork()
-         if childpid == 0 then
-            -- child process
-            unistd.close(fds.stdout_r)
-            unistd.close(fds.stderr_r)
-            unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
-            unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
-            os.execute(self.text)
-            os.exit(0)
-         else
-            add_prompt()
-         end
+local function text_eval(self, text)
+   if #text > 0 then
+      local fds = {}
+      fds.stdout_r, fds.stdout_w = unistd.pipe()
+      fds.stderr_r, fds.stderr_w = unistd.pipe()
+      pipes[#history.children] = fds
+      local childpid = unistd.fork()
+      if childpid == 0 then
+         -- child process
+         unistd.close(fds.stdout_r)
+         unistd.close(fds.stderr_r)
+         unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
+         unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
+         os.execute(text)
+         os.exit(0)
+      else
+         add_prompt()
       end
-      return true
-   elseif key == "Left" then
-      self:cursor_left()
-      return true
-   elseif key == "Right" then
-      self:cursor_right()
-      return true
-   elseif is_text then
-      self:add(key)
-      self:resize()
-      return true
    end
 end
 
 add_prompt = function()
    local text = ui.text("", {
       editable = true,
-      on_key = text_on_key,
+      eval = text_eval,
    })
    local window = ui.vbox({ name = "window", scrollable = false, min_w = 492, spacing = 4, fill = 0x333333, border = 0x00ffff }, {
       text
