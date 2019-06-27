@@ -60,6 +60,8 @@ function ui.init()
       error(err)
    end
 
+   win:setResizeable(true)
+
    local w, h = win:getSize()
    root.w = w
    root.h = h
@@ -367,6 +369,7 @@ local function box_add_child(self, child)
    -- TODO schedule a single resize after all children added
    self:resize()
    update = true
+   return child
 end
 
 local function box_add_children_below(self, children, item)

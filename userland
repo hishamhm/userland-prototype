@@ -9,11 +9,9 @@ ui.init()
 shell.init(ui)
 debugger.init(ui)
 
-local history = ui.vbox({ name = "A", spacing = 4, fill = 0x000000 }, {})
-
-local columns = ui.in_root(
-   ui.hbox({ spacing = 4 }, { history })
-)
+local columns = ui.in_root(ui.hbox({ spacing = 4, scroll_by = 20 }))
+local history
+local add_column
 
 local function eval(self, text)
    if text:match("^$ ") then
@@ -23,7 +21,7 @@ local function eval(self, text)
    else
       self.text = self.parent.parent.name .. #self.parent.parent.children .. " = " .. self.text
       self:resize()
-      self.data.add_prompt("")
+      self.parent.parent.data.add_prompt("")
    end
 end
 
@@ -39,22 +37,29 @@ local function add_prompt(text, dir)
       editable = true,
       eval = eval,
       on_key = on_key,
-      data = {
-         add_prompt = add_prompt,
-      },
    })
    local window = ui.vbox({ name = "window", scrollable = false, min_w = 492, spacing = 4, fill = 0x333333, border = 0x00ffff }, {
       prompt
    })
    ui.set_focus(prompt)
    if dir == "right" then
-      history = ui.vbox({ name = string.char(64 + #columns.children + 1), spacing = 4, fill = 0x000000 }, {})
-      columns:add_child(history)
+      history = add_column()
    end
    history:add_child(window)
 end
 
-add_prompt("")
+add_column = function()
+   return columns:add_child(ui.vbox({
+      name = string.char(64 + #columns.children + 1),
+      spacing = 4,
+      data = {
+         add_prompt = add_prompt,
+      }
+   }))
+end
+
+history = add_column()
+history.data.add_prompt("")
 
 local fullscreen = false
 
