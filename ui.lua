@@ -298,9 +298,9 @@ local function add_child(self, child)
 end
 
 local function box_on_wheel(self, y)
-   if y == 1 then
+   if y == -1 then
       self.scroll_v = self.scroll_v + self.scroll_by
-   elseif y == -1 and self.scroll_v > 0 then
+   elseif y == 1 and self.scroll_v > 0 then
       self.scroll_v = self.scroll_v - self.scroll_by
    end
    update = true
