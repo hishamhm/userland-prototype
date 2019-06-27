@@ -222,7 +222,7 @@ function ui.text(text, flags)
       editable = flags.editable,
       color = flags.color or 0xFFFFFF,
       eval = flags.eval,
-      private = flags.private,
+      data = flags.data,
       on_key_cb = flags.on_key,
 
       cursor = math.max(math.min(flags.cursor or 0, #text), 0),

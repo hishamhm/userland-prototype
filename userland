@@ -22,7 +22,7 @@ local function eval(self, text)
       cell = cell + 1
       self.text = "A" .. cell .. " = " .. self.text
       self:resize()
-      self.private.add_prompt("")
+      self.data.add_prompt("")
    end
 end
 
@@ -38,7 +38,7 @@ local function add_prompt(text, dir)
       editable = true,
       eval = eval,
       on_key = on_key,
-      private = {
+      data = {
          add_prompt = add_prompt,
       },
    })

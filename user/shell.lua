@@ -13,7 +13,7 @@ end
 function shell.on_key(self, key)
    if key == "Ctrl L" then
       self.parent.parent.children = {}
-      self.private.add_prompt("$ ")
+      self.data.add_prompt("$ ")
       return true
    end
 end
@@ -34,7 +34,7 @@ function shell.eval(self, text)
          os.execute(text)
          os.exit(0)
       else
-         self.private.add_prompt("$ ")
+         self.data.add_prompt("$ ")
       end
    end
 end
