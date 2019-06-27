@@ -192,7 +192,7 @@ function ui.text(text, flags)
       min_w = flags.min_w,
       min_h = flags.min_h,
       on_key = flags.on_key,
-      show_cursor = flags.show_cursor,
+      editable = flags.editable,
       cursor = 0,
       color = flags.color or 0xFFFFFF,
       text = text,
@@ -416,13 +416,13 @@ draw = function(obj, off, clip)
       if not obj.tex then
          obj:render()
       end
-      if obj.cursor and obj == focus then
+      if obj.editable and obj.cursor and obj == focus then
          local cliprect = rdr:getClipRect()
          cliprect.w = cliprect.w + 10
          rdr:setClipRect(cliprect)
       end
       copy_to_rdr(obj, off)
-      if obj.show_cursor then
+      if obj.editable and obj == focus then
          if not obj.cursor_x then
             obj:calc_cursor_x()
          end

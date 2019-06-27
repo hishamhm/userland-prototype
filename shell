@@ -51,7 +51,7 @@ end
 
 add_prompt = function()
    local text = ui.text("", {
-      show_cursor = true,
+      editable = true,
       on_key = text_on_key,
    })
    local window = ui.vbox({ name = "window", scroll = false, min_w = 492, spacing = 4, fill = 0x333333, border = 0x00ffff }, {
