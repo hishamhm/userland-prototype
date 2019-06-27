@@ -51,6 +51,7 @@ end
 add_column = function()
    return columns:add_child(ui.vbox({
       name = string.char(64 + #columns.children + 1),
+      scrollable = false,
       spacing = 4,
       data = {
          add_prompt = add_prompt,

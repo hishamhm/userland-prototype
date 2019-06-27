@@ -621,7 +621,43 @@ local function objects_under_mouse(obj, off, rets)
    return rets
 end
 
+local function draw_background()
+   rdr:setClipRect({ x = 0, y = 0, w = root.w, h = root.h })
+
+   local D1 = 200
+   local D2 = 100
+   local D3 = 50
+
+--   rdr:setDrawColor(0x001111)
+--   for i = 1 - (math.floor(root.children[1].scroll_h / 8) % D3), root.w, D3 do
+--      rdr:drawLine({ x1 = i, y1 = 0, x2 = i, y2 = root.h })
+--   end
+--   for i = 1 - (math.floor(root.children[1].scroll_v / 8) % D3), root.h, D3 do
+--      rdr:drawLine({ x1 = 0, y1 = i, x2 = root.w, y2 = i })
+--   end
+
+   rdr:setDrawColor(0x003333)
+   for i = 1 - (math.floor(root.children[1].scroll_h / 4) % D2), root.w, D2 do
+      rdr:drawLine({ x1 = i, y1 = 0, x2 = i, y2 = root.h })
+   end
+   for i = 1 - (math.floor(root.children[1].scroll_v / 4) % D2), root.h, D2 do
+      rdr:drawLine({ x1 = 0, y1 = i, x2 = root.w, y2 = i })
+   end
+
+   rdr:setDrawColor(0x007777)
+   for i = 1 - (math.floor(root.children[1].scroll_h / 2) % D1), root.w, D1 do
+      rdr:drawLine({ x1 = i, y1 = 0, x2 = i, y2 = root.h })
+   end
+   for i = 1 - (math.floor(root.children[1].scroll_v / 2) % D1), root.h, D1 do
+      rdr:drawLine({ x1 = 0, y1 = i, x2 = root.w, y2 = i })
+   end
+end
+
 function ui.run(frame)
+   root.on_wheel = function(_, x, y)
+      root.children[1]:on_wheel(x, y)
+   end
+
    while running do
       for e in SDL.pollEvent() do
          if e.type == SDL.event.Quit then
@@ -675,6 +711,9 @@ function ui.run(frame)
                on_mouse_drag_cb(e.x, e.y)
             end
          else
+            local w, h = win:getSize()
+            root.w = w
+            root.h = h
             update = true
          end
       end
@@ -684,10 +723,14 @@ function ui.run(frame)
       if update then
          rdr:setDrawColor(0x000000)
          rdr:clear()
+
+         draw_background()
+
          for _, child in ipairs(root.children) do
             child.parent = root
             draw(child, root, root)
          end
+
          rdr:present()
          rdr:present()
          update = false
