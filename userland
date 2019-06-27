@@ -7,20 +7,17 @@ local shell = require("user.shell")
 ui.init()
 shell.init(ui)
 
-local history = ui.vbox({ name = "history", spacing = 4, fill = 0x000000 }, {})
+local history = ui.vbox({ name = "A", spacing = 4, fill = 0x000000 }, {})
 
 local columns = ui.in_root(
    ui.hbox({ spacing = 4 }, { history })
 )
 
-local cell = 0
-
 local function eval(self, text)
    if text:match("^$ ") then
       return shell.eval(self, text:sub(2))
    else
-      cell = cell + 1
-      self.text = "A" .. cell .. " = " .. self.text
+      self.text = self.parent.parent.name .. #self.parent.parent.children .. " = " .. self.text
       self:resize()
       self.data.add_prompt("")
    end
@@ -47,7 +44,7 @@ local function add_prompt(text, dir)
    })
    ui.set_focus(prompt)
    if dir == "right" then
-      history = ui.vbox({ name = "history", spacing = 4, fill = 0x000000 }, {})
+      history = ui.vbox({ name = string.char(64 + #columns.children + 1), spacing = 4, fill = 0x000000 }, {})
       columns:add_child(history)
    end
    history:add_child(window)
