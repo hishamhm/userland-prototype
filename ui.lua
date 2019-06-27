@@ -117,6 +117,14 @@ local function text_render(self)
    end
 end
 
+local function text_set(self, str)
+   self.text = str
+   self.cursor = self.cursor + utf8.len(str)
+   self.tex = nil
+   self.cursor_x = nil
+   update = true
+end
+
 local function text_add(self, str)
    self.text = utf8_sub(self.text, 1, self.cursor) .. str .. utf8_sub(self.text, self.cursor + 1)
    self.cursor = self.cursor + utf8.len(str)
@@ -229,6 +237,7 @@ function ui.text(text, flags)
       text = text,
       render = text_render,
       add = text_add,
+      set = text_set,
       cursor_left = text_cursor_left,
       cursor_right = text_cursor_right,
       backspace = text_backspace,
