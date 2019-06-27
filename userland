@@ -1,0 +1,60 @@
+#!./lua
+
+local ui = require("ui")
+
+local shell = require("user.shell")
+
+ui.init()
+shell.init(ui)
+
+local history = ui.in_root(ui.vbox({ name = "history", margin = 10, spacing = 4, fill = 0x000000 }, {}))
+
+local function eval(self, text)
+   if text:match("^$ ") then
+      return shell.eval(self, text:sub(2))
+   end
+end
+
+local function on_key(self, key)
+   if self.text:match("^$ ") then
+      return shell.on_key(self, key)
+   end
+end
+
+local function add_prompt(text)
+   local prompt = ui.text(text, {
+      cursor = #text,
+      editable = true,
+      eval = eval,
+      on_key = on_key,
+      private = {
+         add_prompt = add_prompt,
+      },
+   })
+   local window = ui.vbox({ name = "window", scrollable = false, min_w = 492, spacing = 4, fill = 0x333333, border = 0x00ffff }, {
+      prompt
+   })
+   ui.set_focus(prompt)
+   history:add_child(window)
+end
+
+add_prompt("")
+
+local fullscreen = false
+
+ui.on_key(function(key, is_text, is_repeat)
+   --print(key)
+   if key == "Escape" then
+      ui.quit()
+   elseif key == "Ctrl F" and not is_repeat then
+      fullscreen = not fullscreen
+      ui.fullscreen(fullscreen)
+   end
+end)
+
+ui.on_mouse_drag(function(x, y)
+end)
+
+ui.run(function()
+   shell.frame()
+end)

@@ -221,9 +221,10 @@ function ui.text(text, flags)
       editable = flags.editable,
       color = flags.color or 0xFFFFFF,
       eval = flags.eval,
+      private = flags.private,
       on_key_cb = flags.on_key,
 
-      cursor = 0,
+      cursor = math.max(math.min(flags.cursor or 0, #text), 0),
       text = text,
       render = text_render,
       add = text_add,
