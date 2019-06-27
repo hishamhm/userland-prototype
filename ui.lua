@@ -172,13 +172,13 @@ local function crop(obj)
    end
 end
 
-local function text_on_key(self, key, is_text)
+local function text_on_key(self, key, is_text, is_repeat)
    if key == "Backspace" then
       self:backspace()
       self:resize()
       return true
    elseif key == "Return" then
-      if self.eval then
+      if self.eval and not is_repeat and self.text ~= "" then
          self:eval(self.text)
          return true
       end
@@ -201,6 +201,7 @@ end
 
 local function text_resize(self)
    self.w, self.h = font_size(self.text)
+   self.tex = nil
 
    crop(self)
    if self.parent and self.parent ~= self and self.parent.resize then

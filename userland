@@ -7,11 +7,22 @@ local shell = require("user.shell")
 ui.init()
 shell.init(ui)
 
-local history = ui.in_root(ui.vbox({ name = "history", margin = 10, spacing = 4, fill = 0x000000 }, {}))
+local history = ui.vbox({ name = "history", spacing = 4, fill = 0x000000 }, {})
+
+local columns = ui.in_root(
+   ui.hbox({ spacing = 4 }, { history })
+)
+
+local cell = 0
 
 local function eval(self, text)
    if text:match("^$ ") then
       return shell.eval(self, text:sub(2))
+   else
+      cell = cell + 1
+      self.text = "A" .. cell .. " = " .. self.text
+      self:resize()
+      self.private.add_prompt("")
    end
 end
 
@@ -21,7 +32,7 @@ local function on_key(self, key)
    end
 end
 
-local function add_prompt(text)
+local function add_prompt(text, dir)
    local prompt = ui.text(text, {
       cursor = #text,
       editable = true,
@@ -35,6 +46,10 @@ local function add_prompt(text)
       prompt
    })
    ui.set_focus(prompt)
+   if dir == "right" then
+      history = ui.vbox({ name = "history", spacing = 4, fill = 0x000000 }, {})
+      columns:add_child(history)
+   end
    history:add_child(window)
 end
 
@@ -46,6 +61,8 @@ ui.on_key(function(key, is_text, is_repeat)
    --print(key)
    if key == "Escape" then
       ui.quit()
+   elseif key == "Tab" then
+      add_prompt("", "right")
    elseif key == "Ctrl F" and not is_repeat then
       fullscreen = not fullscreen
       ui.fullscreen(fullscreen)
