@@ -299,11 +299,16 @@ local function add_child(self, child)
    update = true
 end
 
-local function box_on_wheel(self, y)
+local function box_on_wheel(self, x, y)
    if y == -1 then
       self.scroll_v = self.scroll_v + self.scroll_by
    elseif y == 1 and self.scroll_v > 0 then
       self.scroll_v = self.scroll_v - self.scroll_by
+   end
+   if x == -1 then
+      self.scroll_h = self.scroll_h + self.scroll_by
+   elseif x == 1 and self.scroll_h > 0 then
+      self.scroll_h = self.scroll_h - self.scroll_by
    end
    update = true
 end
@@ -542,7 +547,7 @@ function ui.run(frame)
             local objs = objects_under_mouse()
             for _, obj in ipairs(objs) do
                if obj.on_wheel then
-                  obj:on_wheel(e.y)
+                  obj:on_wheel(e.x, e.y)
                   break
                end
             end
