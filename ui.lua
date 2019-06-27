@@ -300,10 +300,42 @@ local function box_resize(self)
    end
 end
 
-local function add_child(self, child)
+local function box_add_child(self, child)
    detach(child)
    child.parent = self
    table.insert(self.children, child)
+   -- TODO schedule a single resize after all children added
+   self:resize()
+   update = true
+end
+
+local function box_add_children_below(self, children, item)
+   local pos = nil
+   for i, child in ipairs(self.children) do
+      if not pos then
+         if child == item then
+            pos = i
+            break
+         end
+      end
+   end
+   local n = #children
+   for i = #self.children, pos + 1, -1 do
+      self.children[i + n] = self.children[i]
+   end
+   for i, child in ipairs(children) do
+      detach(child)
+      child.parent = self
+      self.children[i + pos] = child
+   end
+   self:resize()
+   update = true
+end
+
+local function box_remove_n_children_below(self, n, pos)
+   for _ = pos + 1, pos + n do
+      detach(self.children[pos + 1])
+   end
    self:resize()
    update = true
 end
@@ -323,6 +355,7 @@ local function box_on_wheel(self, x, y)
 end
 
 local function make_box(flags, children, type)
+   flags = flags or E
    local obj = {
       name = flags.name,
       type = type,
@@ -342,10 +375,13 @@ local function make_box(flags, children, type)
       fill = flags.fill,
       border = flags.border,
       children = children or {},
+      data = flags.data,
 
       resize = box_resize,
       on_wheel = flags.scrollable ~= false and box_on_wheel,
-      add_child = add_child,
+      add_child = box_add_child,
+      add_children_below = box_add_children_below,
+      remove_n_children_below = box_remove_n_children_below,
    }
 
    for _, child in ipairs(obj.children) do
