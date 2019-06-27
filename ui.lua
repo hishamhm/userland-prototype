@@ -3,6 +3,7 @@ local ui = {}
 local SDL = require("SDL")
 local Image = require("SDL.image")
 local TTF = require("SDL.ttf")
+local util = require("util")
 
 local width = 1024
 local height = 600
@@ -25,7 +26,7 @@ end
 local function offset(rect, off)
   return { x = rect.x + off.x, y = rect.y + off.y, w = rect.w, h = rect.h }
 end
- 
+
 function ui.set_focus(obj)
    focus = obj
    update = true
@@ -244,9 +245,68 @@ function ui.text(text, flags)
       calc_cursor_x = text_calc_cursor_x,
       resize = text_resize,
       on_key = text_on_key,
+      on_click = flags.on_click,
    }
    obj:resize()
    return obj
+end
+
+local function tree_collapser_on_click(self)
+   self.data.open = not self.data.open
+   local line = self.parent
+   local tree = line.parent
+   if self.data.open then
+      self:set(" ▽ ")
+      local children = line.data.collapsed
+      line.data.collapsed = nil
+      tree:add_children_below(children, line)
+   else
+      self:set(" ▷ ")
+      local level = line.data.level
+      local collapse = {}
+      local pos
+      for i, child in ipairs(tree.children) do
+         if not pos then
+            if child == line then
+               pos = i
+            end
+         else
+            if child.data.level > level then
+               table.insert(collapse, child)
+            else
+               break
+            end
+         end
+      end
+      tree:remove_n_children_below(#collapse, pos)
+      line.data.collapsed = collapse
+   end
+end
+
+local function traverse_tree(tree, box, level, seen)
+   seen[tree] = true
+   for k, v in util.sortedpairs(tree) do
+      local line = ui.hbox({ scrollable = false, data = { level = level } })
+      for _ = 1, level - 1 do
+         line:add_child(ui.text("   "))
+      end
+      if type(v) == "table" and not seen[v] then
+         line:add_child(ui.text(" ▽ ", { color = 0x00ffff, on_click = tree_collapser_on_click, data = { open = true } } ))
+         line:add_child(ui.text(tostring(k)))
+         box:add_child(line)
+         traverse_tree(v, box, level + 1, seen)
+      else
+         line:add_child(ui.text("   "))
+         line:add_child(ui.text(tostring(k) .. " = " ..tostring(v)))
+         box:add_child(line)
+      end
+   end
+end
+
+function ui.tree(tree)
+   local box = ui.vbox({ scroll_by = 17 })
+   traverse_tree(tree, box, 1, {})
+   return box
 end
 
 function ui.rect(flags)
@@ -629,7 +689,7 @@ function ui.run(frame)
          rdr:present()
          update = false
       end
-   
+
       SDL.delay(16)
    end
 end
