@@ -3,9 +3,11 @@
 local ui = require("ui")
 
 local shell = require("user.shell")
+local debugger = require("user.debugger")
 
 ui.init()
 shell.init(ui)
+debugger.init(ui)
 
 local history = ui.vbox({ name = "A", spacing = 4, fill = 0x000000 }, {})
 
@@ -16,6 +18,8 @@ local columns = ui.in_root(
 local function eval(self, text)
    if text:match("^$ ") then
       return shell.eval(self, text:sub(2))
+   elseif text:match("^debug") then
+      return debugger.new(self)
    else
       self.text = self.parent.parent.name .. #self.parent.parent.children .. " = " .. self.text
       self:resize()
