@@ -1,12 +1,12 @@
 #!./lua
 
-local gr = require("gr")
+local ui = require("ui")
 local unistd = require("posix.unistd")
 local poll = require("posix.poll")
 
-gr.init()
+ui.init()
 
-local history = gr.in_root(gr.vbox({ name = "history", margin = 10, spacing = 4, fill = 0x000000 }, {}))
+local history = ui.in_root(ui.vbox({ name = "history", margin = 10, spacing = 4, fill = 0x000000 }, {}))
 
 local pipes = {}
 local add_prompt
@@ -50,14 +50,14 @@ local function text_on_key(self, key, is_text)
 end
 
 add_prompt = function()
-   local text = gr.text("", {
+   local text = ui.text("", {
       show_cursor = true,
       on_key = text_on_key,
    })
-   local window = gr.vbox({ name = "window", scroll = false, min_w = 492, spacing = 4, fill = 0x333333, border = 0x00ffff }, {
+   local window = ui.vbox({ name = "window", scroll = false, min_w = 492, spacing = 4, fill = 0x333333, border = 0x00ffff }, {
       text
    })
-   gr.set_focus(text)
+   ui.set_focus(text)
    history:add_child(window)
 end
 
@@ -65,39 +65,39 @@ add_prompt()
 
 local fullscreen = false
 
-gr.on_key(function(key, is_text, is_repeat)
+ui.on_key(function(key, is_text, is_repeat)
    --print(key)
    if key == "Escape" then
-      gr.quit()
+      ui.quit()
    elseif key == "Ctrl L" then
       history.children = {}
       add_prompt()
    elseif key == "Ctrl F" and not is_repeat then
       fullscreen = not fullscreen
-      gr.fullscreen(fullscreen)
+      ui.fullscreen(fullscreen)
    end
 end)
 
-gr.on_mouse_drag(function(x, y)
+ui.on_mouse_drag(function(x, y)
 end)
 
 local TEXT_W = 492 - 8
 
-gr.run(function()
+ui.run(function()
    for i, fds in pairs(pipes) do
       local data = poll.rpoll(fds.stdout_r, 0)
       if data == 1 then
          local win = history.children[i]
          local list
          if #win.children == 1 then
-            local list = gr.vbox({ min_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x000000, border = 0x00ffff })
+            local list = ui.vbox({ min_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x000000, border = 0x00ffff })
             win:add_child(list)
          else
             list = win.children[2]
          end
          if list then
             for line in unistd.read(fds.stdout_r, 1024):gmatch("[^\n]+") do
-               list:add_child(gr.text(line, { max_w = TEXT_W }))
+               list:add_child(ui.text(line, { max_w = TEXT_W }))
             end
          end
       end
@@ -107,7 +107,7 @@ gr.run(function()
          local win = history.children[i]
          local list
          if #win.children == 1 then
-            local list = gr.vbox({ min_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x000000, border = 0x00ffff })
+            local list = ui.vbox({ min_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x000000, border = 0x00ffff })
             win:add_child(list)
          else
             list = win.children[2]
@@ -115,7 +115,7 @@ gr.run(function()
          if list then
             -- FIXME correct handling of linebreaks
             for line in unistd.read(fds.stderr_r, 1024):gmatch("[^\n]+") do
-               list:add_child(gr.text(line, { max_w = TEXT_W, color = 0xff7777 }))
+               list:add_child(ui.text(line, { max_w = TEXT_W, color = 0xff7777 }))
             end
          end
       end

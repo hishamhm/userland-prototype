@@ -1,4 +1,4 @@
-local gr = {}
+local ui = {}
 
 local SDL = require("SDL")
 local Image = require("SDL.image")
@@ -26,12 +26,12 @@ local function offset(rect, off)
   return { x = rect.x + off.x, y = rect.y + off.y, w = rect.w, h = rect.h }
 end
  
-function gr.set_focus(obj)
+function ui.set_focus(obj)
    focus = obj
    update = true
 end
 
-function gr.init()
+function ui.init()
    local ret, err = SDL.init()
    if not ret then
       error(err)
@@ -64,12 +64,12 @@ function gr.init()
    root.h = h
 end
 
-function gr.clear()
+function ui.clear()
    rdr:clear()
    update = true
 end
 
-function gr.image(filename, flags)
+function ui.image(filename, flags)
    local obj = {
       type = "image",
       x = flags.x,
@@ -181,7 +181,7 @@ local function text_resize(self)
    end
 end
 
-function gr.text(text, flags)
+function ui.text(text, flags)
    flags = flags or E
    local obj = {
       type = "text",
@@ -208,7 +208,7 @@ function gr.text(text, flags)
    return obj
 end
 
-function gr.rect(flags)
+function ui.rect(flags)
    local obj = {
       type = "rect",
       x = flags.x or 0,
@@ -311,37 +311,37 @@ local function make_box(flags, children, type)
    return obj
 end
 
-function gr.vbox(flags, children)
+function ui.vbox(flags, children)
    return make_box(flags, children, "vbox")
 end
 
-function gr.hbox(flags, children)
+function ui.hbox(flags, children)
    return make_box(flags, children, "hbox")
 end
 
-function gr.in_root(obj)
+function ui.in_root(obj)
    table.insert(root.children, obj)
    obj.parent = root
    update = true
    return obj
 end
 
-function gr.on_key(cb)
+function ui.on_key(cb)
    on_key_cb = cb
    update = true
 end
 
-function gr.on_mouse_drag(cb)
+function ui.on_mouse_drag(cb)
    on_mouse_drag_cb = cb
    update = true
 end
 
-function gr.quit()
+function ui.quit()
    running = false
    update = true
 end
 
-function gr.fullscreen(mode)
+function ui.fullscreen(mode)
    win:setFullscreen(mode and SDL.window.Desktop or 0)
    local w, h = win:getSize()
    root.w = w
@@ -474,7 +474,7 @@ local function objects_under_mouse(obj, off, rets)
    return rets
 end
 
-function gr.run(frame)
+function ui.run(frame)
    while running do
       for e in SDL.pollEvent() do
          if e.type == SDL.event.Quit then
@@ -542,4 +542,4 @@ function gr.run(frame)
    end
 end
 
-return gr
+return ui
