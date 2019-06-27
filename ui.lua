@@ -298,7 +298,7 @@ local function make_box(flags, children, type)
       children = children or {},
 
       resize = box_resize,
-      on_wheel = flags.scroll ~= false and box_on_wheel,
+      on_wheel = flags.scrollable ~= false and box_on_wheel,
       add_child = add_child,
    }
 
