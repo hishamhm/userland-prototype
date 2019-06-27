@@ -6,7 +6,7 @@ local poll = require("posix.poll")
 
 gr.init()
 
-local scroll = gr.in_root(gr.vbox({ x = 0, y = 0, padding = 9, fill = 0x000000 }, {}))
+local history = gr.in_root(gr.vbox({ name = "history", margin = 10, spacing = 4, fill = 0x000000 }, {}))
 
 local pipes = {}
 local add_prompt
@@ -14,13 +14,14 @@ local add_prompt
 local function text_on_key(self, key, is_text)
    if key == "Backspace" then
       self:backspace()
+      self:resize()
       return true
    elseif key == "Return" then
       if #self.text > 0 then
          local fds = {}
          fds.stdout_r, fds.stdout_w = unistd.pipe()
          fds.stderr_r, fds.stderr_w = unistd.pipe()
-         pipes[#scroll.children] = fds
+         pipes[#history.children] = fds
          local childpid = unistd.fork()
          if childpid == 0 then
             -- child process
@@ -43,6 +44,7 @@ local function text_on_key(self, key, is_text)
       return true
    elseif is_text then
       self:add(key)
+      self:resize()
       return true
    end
 end
@@ -52,12 +54,11 @@ add_prompt = function()
       show_cursor = true,
       on_key = text_on_key,
    })
-   local window = gr.vbox({ min_w = 780, padding = 4, fill = 0x333333, border = 0x00ffff }, {
+   local window = gr.vbox({ name = "window", scroll = false, min_w = 492, spacing = 4, fill = 0x333333, border = 0x00ffff }, {
       text
    })
    gr.set_focus(text)
-   scroll:add_child(window)
-   --table.insert(scroll.children, window)
+   history:add_child(window)
 end
 
 add_prompt()
@@ -69,7 +70,7 @@ gr.on_key(function(key, is_text, is_repeat)
    if key == "Escape" then
       gr.quit()
    elseif key == "Ctrl L" then
-      scroll.children = {}
+      history.children = {}
       add_prompt()
    elseif key == "Ctrl F" and not is_repeat then
       fullscreen = not fullscreen
@@ -80,52 +81,42 @@ end)
 gr.on_mouse_drag(function(x, y)
 end)
 
-local TEXT_W = 760
+local TEXT_W = 492 - 8
 
 gr.run(function()
    for i, fds in pairs(pipes) do
       local data = poll.rpoll(fds.stdout_r, 0)
       if data == 1 then
-         local win = scroll.children[i]
+         local win = history.children[i]
          local list
          if #win.children == 1 then
-            local list = gr.vbox({ min_w = 770, max_h = 200, padding = 4, fill = 0x000000, border = 0x00ffff }, {
-            })
-            --win:add_child(list)
-            table.insert(win.children, list)
+            local list = gr.vbox({ min_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x000000, border = 0x00ffff })
+            win:add_child(list)
          else
             list = win.children[2]
          end
          if list then
             for line in unistd.read(fds.stdout_r, 1024):gmatch("[^\n]+") do
-               --list:add_child(list, (gr.text(line, { max_w = TEXT_W })))
-               table.insert(list.children, (gr.text(line, { max_w = TEXT_W })))
+               list:add_child(gr.text(line, { max_w = TEXT_W }))
             end
-            list:resize()
-            win:resize()
          end
       end
 
       data = poll.rpoll(fds.stderr_r, 0)
       if data == 1 then
-         local win = scroll.children[i]
+         local win = history.children[i]
          local list
          if #win.children == 1 then
-            local list = gr.vbox({ min_w = 770, max_h = 200, padding = 4, fill = 0x000000, border = 0x00ffff }, {
-            })
-            -- TODO add_child
-            table.insert(win.children, list)
+            local list = gr.vbox({ min_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x000000, border = 0x00ffff })
+            win:add_child(list)
          else
             list = win.children[2]
          end
          if list then
             -- FIXME correct handling of linebreaks
             for line in unistd.read(fds.stderr_r, 1024):gmatch("[^\n]+") do
-               -- TODO add_child
-               table.insert(list.children, (gr.text(line, { max_w = TEXT_W, color = 0xff7777 })))
+               list:add_child(gr.text(line, { max_w = TEXT_W, color = 0xff7777 }))
             end
-            list:resize()
-            win:resize()
          end
       end
    end
