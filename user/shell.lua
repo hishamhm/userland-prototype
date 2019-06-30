@@ -58,10 +58,11 @@ function shell.on_key(self, key)
          prev = child
       end
       if prev then
-         if self.text == "" and cur == #history.children then
+         local prevprompt = prev.children[1].children.prompt
+         if self.text == "" and cur == #history.children and prevprompt.data.pwd == self.data.pwd then
             history:remove_n_children_below(1, cur - 1)
          end
-         ui.set_focus(prev.children[1].children.prompt)
+         ui.set_focus(prevprompt)
       end
    elseif key == "Down" then
       -- TODO make not O(n)
