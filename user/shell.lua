@@ -6,24 +6,115 @@ local poll = require("posix.poll")
 
 local pipes = {}
 
+local function normalize(dir)
+   dir = dir:gsub("^" .. os.getenv("HOME"), "~")
+   dir = dir .. "/"
+   dir = dir:gsub("//", "/"):gsub("/[^/]+/%.%./", "/"):gsub("//", "/")
+   return dir
+end
+
+local function add_cell(self)
+   local window = self.parent.parent
+   local history = window.parent
+   history.data.add_prompt(history, "$", " " .. (self.data.pwd or "") .. " ", nil, { pwd = self.data.pwd })
+end
+
 function shell.init(ui_)
    ui = ui_
 end
 
+function shell.enable(self)
+   local window = self.parent.parent
+   self.data.pwd = self.data.pwd or normalize(os.getenv("PWD"))
+   window.data.context = "$"
+   self.parent.children.context:set(" " .. self.data.pwd .. " ")
+end
+
 function shell.on_key(self, key)
+   local history = self.parent.parent.parent
+   local window = self.parent.parent
    if key == "Ctrl L" then
-      self.parent.parent.children = {}
-      self.parent.parent.data.add_prompt("$ ")
+      history.children = {}
+      history.data.add_prompt(history, "$", " " .. self.data.pwd .. " ", nil, { pwd = self.data.pwd })
       return true
+   elseif key == "Ctrl Tab" then
+      history.data.add_prompt(history, "$", " " .. self.data.pwd .. " ", "right", { pwd = self.data.pwd })
+      return true
+   elseif key == "Ctrl A" then
+      self:cursor_set(0)
+      return true
+   elseif key == "Ctrl E" then
+      self:cursor_set(math.huge)
+      return true
+   elseif key == "Up" then
+      -- TODO make not O(n)
+      local prev, cur
+      for i, child in ipairs(history.children) do
+         if child == window then
+            cur = i
+            break
+         end
+         prev = child
+      end
+      if prev then
+         if self.text == "" and cur == #history.children then
+            history:remove_n_children_below(1, cur - 1)
+         end
+         ui.set_focus(prev.children[1].children.prompt)
+      end
+   elseif key == "Down" then
+      -- TODO make not O(n)
+      local next
+      local pick = false
+      for _, child in ipairs(history.children) do
+         if pick then
+            next = child
+            break
+         end
+         if child == window then
+            pick = true
+         end
+      end
+      if next then
+         ui.set_focus(next.children[1].children.prompt)
+      else
+         if self.text ~= "" then
+            add_cell(self)
+         end
+      end
    end
 end
 
 function shell.eval(self, text)
+   local window = self.parent.parent
+   self.data = self.data or {}
+
+   local nextcmd = true
+   local pwd = text:match("^%s*cd%s*(.*)%s*$")
+   if pwd then
+      if pwd == "" then
+         pwd = os.getenv("HOME")
+      end
+      pwd = pwd:gsub("^~", os.getenv("HOME") .. "/")
+      if pwd:match("^/") then
+         self.data.pwd = pwd
+      else
+         self.data.pwd = self.data.pwd .. "/" .. pwd
+      end
+      self.data.pwd = normalize(self.data.pwd)
+      self.parent.children.context:set(" " .. self.data.pwd .. " ")
+      self.parent.children.prompt:set("")
+      text = "ls | column | expand"
+      nextcmd = false
+   end
+   if window.children.output then
+      window.children.output:remove_n_children_below(math.huge, 0)
+   end
    if #text > 0 then
       local fds = {}
       fds.stdout_r, fds.stdout_w = unistd.pipe()
       fds.stderr_r, fds.stderr_w = unistd.pipe()
-      pipes[self.parent] = fds
+      pipes[window] = fds
       local childpid = unistd.fork()
       if childpid == 0 then
          -- child process
@@ -31,10 +122,18 @@ function shell.eval(self, text)
          unistd.close(fds.stderr_r)
          unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
          unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
-         os.execute(text)
+         local cd_to = ""
+         local cd_done = ""
+         if self.data.pwd then
+            cd_to = "cd " .. self.data.pwd .. " && ( "
+            cd_done = " )"
+         end
+         os.execute(cd_to .. text .. cd_done)
          os.exit(0)
       else
-         self.parent.parent.data.add_prompt("$ ")
+         if nextcmd then
+            add_cell(self)
+         end
       end
    end
 end
@@ -46,15 +145,17 @@ local function poll_fd(win, fd, color)
    if data == 1 then
       local list
       if #win.children == 1 then
-         local list = ui.vbox({ min_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x000000, border = 0x00ffff })
+         local list = ui.vbox({ name = "output", min_w = TEXT_W, max_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x77000000, border = 0x00ffff })
          win:add_child(list)
       else
          list = win.children[2]
       end
       if list then
          for line in unistd.read(fd, 1024):gmatch("[^\n]+") do
-            list:add_child(ui.text(line, { max_w = TEXT_W, color = color }))
+            -- TODO fix tab expansion
+            list:add_child(ui.text(line:gsub("\t", "   "), { color = color }))
          end
+         list.scroll_v = list.total_h - list.h
       end
    end
 end
