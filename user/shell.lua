@@ -28,6 +28,7 @@ function shell.enable(self)
    self.data.pwd = self.data.pwd or normalize(os.getenv("PWD"))
    window.data.context = "$"
    self.parent.children.context:set(" " .. self.data.pwd .. " ")
+   self.parent.children.prompt:resize()
 end
 
 function shell.on_key(self, key)
