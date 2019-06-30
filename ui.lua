@@ -234,6 +234,7 @@ end
 local function text_resize(self)
    self.w, self.h = font_size(self.text)
    self.tex = nil
+   self.cursor_x = nil
 
    crop(self)
    if self.parent and self.parent ~= self and self.parent.resize then
