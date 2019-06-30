@@ -146,16 +146,26 @@ local function poll_fd(win, fd, color)
    local data = poll.rpoll(fd, 0)
    if data == 1 then
       local list
+      local cont = false
       if #win.children == 1 then
-         local list = ui.vbox({ name = "output", min_w = TEXT_W, max_w = TEXT_W, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x77000000, border = 0x00ffff })
+         local list = ui.vbox({ name = "output", min_w = TEXT_W, max_w = TEXT_W * 2, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x77000000, border = 0x00ffff })
          win:add_child(list)
       else
          list = win.children[2]
+         cont = true
       end
       if list then
-         for line in unistd.read(fd, 1024):gmatch("[^\n]+") do
-            -- TODO fix tab expansion
-            list:add_child(ui.text(line:gsub("\t", "   "), { color = color }))
+         for line in unistd.read(fd, 1024):gmatch("([^\n]*)\n?") do
+            -- FIXME proper tab expansion
+            line = line:gsub("\t", "   ")
+            -- FIXME don't merge stdout and stderr lines
+            if cont and #list.children > 0 then
+               list.children[#list.children]:cursor_move(math.huge)
+               list.children[#list.children]:add(line)
+            else
+               list:add_child(ui.text(line, { color = color }))
+            end
+            cont = false
          end
          list.scroll_v = list.total_h - list.h
       end
