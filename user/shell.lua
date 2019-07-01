@@ -48,15 +48,7 @@ function shell.on_key(self, key)
       self:cursor_set(math.huge)
       return true
    elseif key == "Up" then
-      -- TODO make not O(n)
-      local prev, cur
-      for i, child in ipairs(history.children) do
-         if child == window then
-            cur = i
-            break
-         end
-         prev = child
-      end
+      local prev, cur = ui.previous_sibling(window)
       if prev then
          local prevprompt = prev.children[1].children.prompt
          if self.text == "" and cur == #history.children and prevprompt.data.pwd == self.data.pwd then
@@ -65,18 +57,7 @@ function shell.on_key(self, key)
          ui.set_focus(prevprompt)
       end
    elseif key == "Down" then
-      -- TODO make not O(n)
-      local next
-      local pick = false
-      for _, child in ipairs(history.children) do
-         if pick then
-            next = child
-            break
-         end
-         if child == window then
-            pick = true
-         end
-      end
+      local next = ui.next_sibling(window)
       if next then
          ui.set_focus(next.children[1].children.prompt)
       else

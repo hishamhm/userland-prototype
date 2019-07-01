@@ -541,6 +541,35 @@ function ui.fullscreen(mode)
    update = true
 end
 
+function ui.previous_sibling(self)
+   -- TODO make not O(n)
+   local prev, cur
+   for i, child in ipairs(self.parent.children) do
+      if child == self then
+         cur = i
+         break
+      end
+      prev = child
+   end
+   return prev, cur
+end
+
+function ui.next_sibling(self)
+   -- TODO make not O(n)
+   local next
+   local pick = false
+   for _, child in ipairs(self.parent.children) do
+      if pick then
+         next = child
+         break
+      end
+      if child == self then
+         pick = true
+      end
+   end
+   return next
+end
+
 local ismod = {
    [SDL.key.LeftControl] = true,
    [SDL.key.LeftAlt] = true,
