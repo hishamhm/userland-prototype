@@ -9,7 +9,7 @@ ui.init()
 shell.init(ui)
 debugger.init(ui)
 
-local columns = ui.in_root(ui.hbox({ spacing = 4, scroll_by = 20 }))
+local columns = ui.in_root(ui.hbox({ name = "columns", spacing = 4, scroll_by = 20 }))
 local add_column
 
 local function prompt_eval(self, text)

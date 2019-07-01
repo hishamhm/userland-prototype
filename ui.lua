@@ -331,7 +331,7 @@ local function traverse_tree(tree, box, level, seen)
 end
 
 function ui.tree(tree)
-   local box = ui.vbox({ scroll_by = 17 })
+   local box = ui.vbox({ name = "tree", scroll_by = 17 })
    traverse_tree(tree, box, 1, {})
    return box
 end
