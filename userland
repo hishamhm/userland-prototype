@@ -12,42 +12,83 @@ debugger.init(ui)
 local columns = ui.in_root(ui.hbox({ name = "columns", spacing = 4, scroll_by = 20 }))
 local add_column
 
+local function down(self)
+   local cell = ui.above(self, "cell")
+   if not cell then
+      return
+   end
+   local column = ui.above(cell, "column")
+   local next = ui.next_sibling(cell)
+   if not next then
+      local prompt = ui.below(cell, "prompt")
+      if prompt.text == "" then
+         return
+      end
+      next = column.data.add_cell(column, "?", " ? ")
+   end
+   ui.set_focus(next)
+end
+
+local function right(self)
+   local cell = ui.above(self, "cell")
+   if not cell then
+      return
+   end
+   local column = ui.above(cell, "column")
+   local nextcol = ui.next_sibling(column)
+   if nextcol then
+      ui.set_focus(nextcol.children[1]) -- FIXME cell visually to the right
+   else
+      local prompt = ui.below(cell, "prompt")
+      if prompt.text == "" then
+         return
+      end
+      nextcol = add_column()
+      ui.set_focus(nextcol.data.add_cell(nextcol, "?", " ? "))
+   end
+end
+
 local function prompt_eval(self, text)
-   local context = self.parent.parent.data.context
-   if context == "$" then
+   local cell = ui.above(self, "cell")
+   local mode = cell.data.mode
+   if mode == "$" then
       return shell.eval(self, text)
    elseif text:match("^debug") then
       return debugger.new(self)
    else
-      local id = self.parent.parent.parent.name .. #self.parent.parent.parent.children
-      self.parent.children.context:set(id .. " ")
-      self:resize()
-      local column = self.parent.parent.parent
-      column.data.add_prompt(column, "?", " ? ")
+      local context = ui.below(cell, "context")
+      if context.text == " ? " then
+         local column = ui.above(self, "column")
+         local id = column.data.name .. #column.children
+         context:set(id .. " ")
+         self:resize()
+      end
+      down(cell)
    end
 end
 
 local function prompt_on_key(self, key, is_text, is_repeat)
-   local context = self.parent.parent.data.context
-   if context == "?" then
+   local cell = ui.above(self, "cell")
+   local mode = cell.data.mode
+   if mode == "?" then
       if key == "$" then
          shell.enable(self)
          return true
       end
    end
    if key == "Ctrl Backspace" and self.text == "" and not is_repeat then
-      self.parent.parent.data.context = "?"
-      self.parent.children.context:set(" ? ")
+      cell.data.mode = "?"
+      ui.below(cell, "context"):set(" ? ")
       return true
    end
-   if context == "$" then
+   if mode == "$" then
       return shell.on_key(self, key)
    end
 end
 
-local function add_prompt(column, context, text, dir, data)
-   local window = ui.vbox({
-      name = "window",
+local function add_cell(column, mode, text, dir, data)
+   local cell = ui.vbox({
+      name = "cell",
       scrollable = false,
       min_w = 350,
       spacing = 4,
@@ -55,21 +96,21 @@ local function add_prompt(column, context, text, dir, data)
       border = 0x00cccc,
       focus_border = 0x77ffff,
       data = {
-         context = context,
+         mode = mode,
       },
       on_key = function(self, key, is_text, is_repeat)
+         local prompt = ui.below(self, "prompt")
          if is_text then
-            local prompt = self.children[1].children.prompt
             prompt:on_key(key, is_text, is_repeat)
             ui.set_focus(prompt)
             return true
          elseif key == "Return" then
-            ui.set_focus(self.children[1].children.prompt)
+            ui.set_focus(prompt)
             return true
          end
       end,
       on_click = function(self)
-         ui.set_focus(self.children[1].children.prompt)
+         ui.set_focus(ui.below(self, "prompt"))
          return true
       end,
    }, {
@@ -88,26 +129,28 @@ local function add_prompt(column, context, text, dir, data)
          }),
       })
    })
-   ui.set_focus(window)
+   ui.set_focus(cell)
    if dir == "right" then
       column = add_column()
    end
-   column:add_child(window)
+   column:add_child(cell)
+   return cell
 end
 
 add_column = function()
    return columns:add_child(ui.vbox({
-      name = string.char(64 + #columns.children + 1),
+      name = "column",
       scrollable = false,
       spacing = 4,
       data = {
-         add_prompt = add_prompt,
+         name = string.char(64 + #columns.children + 1),
+         add_cell = add_cell,
       }
    }))
 end
 
 local column = add_column()
-column.data.add_prompt(column, "?", " ? ")
+column.data.add_cell(column, "?", " ? ")
 
 local fullscreen = false
 
@@ -124,10 +167,14 @@ ui.on_key(function(focus, key, is_text, is_repeat)
          ui.set_focus(prev)
       end
    elseif key == "Down" then
-      local next = ui.next_sibling(focus)
-      if next then
-         ui.set_focus(next)
+      down(focus)
+   elseif key == "Left" then
+      local prevcol = ui.previous_sibling(ui.above(focus, "column"))
+      if prevcol then
+         ui.set_focus(prevcol.children[1]) -- FIXME cell visually to the left
       end
+   elseif key == "Right" then
+      right(focus)
    end
 end)
 

@@ -38,6 +38,9 @@ local function make_tree(tv, tk, out, seen)
          if uk == nil then
             break
          end
+         if uv == nil then
+            uv = "nil"
+         end
          if uk ~= "_ENV" then
             make_tree(uv, "(upvalue) " .. uk, out, seen)
          end
@@ -51,15 +54,22 @@ local function make_tree(tv, tk, out, seen)
 end
 
 function debugger.new(self)
-   local window = self.parent.parent
-   local history = window.parent
+   local cell = ui.above(self, "cell")
+   local column = ui.above(self, "column")
    local arg = self.text:match("debug%s*([^%s]+)")
    local root = arg and package.loaded[arg] or _G
-   window:remove_n_children_below(1, 1)
-   window:add_child(ui.vbox({ name = "window", scroll_by = 21, min_w = 492, max_w = 492, max_h = 400, spacing = 4, fill = 0x222222, border = 0x00ffff }, {
-      ui.tree(make_tree(root))
-   }))
-   history.data.add_prompt(history, "?", " ? ")
+   cell:remove_n_children_below(1, 1)
+   cell:add_child(ui.tree({
+      name = "tree",
+      scroll_by = 21,
+      min_w = 492,
+      max_w = 492,
+      max_h = 400,
+      spacing = 4,
+      fill = 0x222222,
+      border = 0x00ffff,
+   }, make_tree(root)))
+   column.data.add_cell(column, "?", " ? ")
 end
 
 return debugger

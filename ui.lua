@@ -330,8 +330,9 @@ local function traverse_tree(tree, box, level, seen)
    end
 end
 
-function ui.tree(tree)
-   local box = ui.vbox({ name = "tree", scroll_by = 17 })
+function ui.tree(flags, tree)
+   flags.scroll_by = 17
+   local box = ui.vbox(flags)
    traverse_tree(tree, box, 1, {})
    return box
 end
@@ -451,16 +452,36 @@ local function box_on_drag(self, x, y)
    update = true
 end
 
-local box_children_mt = {
-   __index = function(t, k)
-      for i = 1, #t do
-         local ti = rawget(t, i)
-         if ti.name == k then
-            return ti
+function ui.above(t, k)
+   if t.name == k then
+      return t
+   end
+   if t.parent then
+      return ui.above(t.parent, k)
+   end
+end
+
+function ui.below(t, k)
+   if t.name == k then
+      return t
+   end
+   if not t.children then
+      return nil
+   end
+   for _, child in ipairs(t.children) do
+      if child.name == k then
+         return child
+      end
+   end
+   for _, child in ipairs(t.children) do
+      if type(child) == "table" and child.children then
+         local found = ui.below(child, k)
+         if found then
+            return found
          end
       end
    end
-}
+end
 
 local function make_box(flags, children, type)
    flags = flags or E
@@ -484,6 +505,7 @@ local function make_box(flags, children, type)
       min_h = flags.min_h,
       fill = flags.fill,
       border = flags.border,
+      focus_fill_color = flags.focus_fill_color,
       focus_border = flags.focus_border,
       children = children or {},
       data = flags.data,
@@ -497,7 +519,6 @@ local function make_box(flags, children, type)
       add_children_below = box_add_children_below,
       remove_n_children_below = box_remove_n_children_below,
    }
-   setmetatable(obj.children, box_children_mt)
 
    for _, child in ipairs(obj.children) do
       detach(child)
@@ -624,18 +645,26 @@ end
 
 draw = function(obj, off, clip)
    clip = clip or root
+
    local offobj = offset(obj, off)
    local ok
+   local prevclip = clip
    ok, clip = SDL.intersectRect(clip, offobj)
    if not ok then
       return false
    end
-   if clip then
-      if clip.border then
-         rdr:setClipRect(clip)
-      else
-         rdr:setClipRect(clip)
+
+   if obj == focus and obj.parent.focus_fill_color then
+      local ok, r = SDL.intersectRect(expand(prevclip, -1), offset({ x = 1, y = obj.y, w = obj.parent.w - 2, h = obj.h }, off))
+      if ok then
+         rdr:setClipRect(r)
+         rdr:setDrawColor(alpha(obj.parent.focus_fill_color))
+         rdr:fillRect(r)
       end
+   end
+
+   if clip then
+      rdr:setClipRect(clip)
    end
 
    if obj.type == "image" then

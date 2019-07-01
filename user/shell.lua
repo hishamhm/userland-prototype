@@ -14,9 +14,8 @@ local function normalize(dir)
 end
 
 local function add_cell(self)
-   local window = self.parent.parent
-   local history = window.parent
-   history.data.add_prompt(history, "$", " " .. (self.data.pwd or "") .. " ", nil, { pwd = self.data.pwd })
+   local column = ui.above(self, "column")
+   column.data.add_cell(column, "$", (self.data.pwd or "") .. " ", nil, { pwd = self.data.pwd })
 end
 
 function shell.init(ui_)
@@ -24,22 +23,22 @@ function shell.init(ui_)
 end
 
 function shell.enable(self)
-   local window = self.parent.parent
+   local cell = ui.above(self, "cell")
    self.data.pwd = self.data.pwd or normalize(os.getenv("PWD"))
-   window.data.context = "$"
-   self.parent.children.context:set(" " .. self.data.pwd .. " ")
-   self.parent.children.prompt:resize()
+   cell.data.mode = "$"
+   ui.below(cell, "context"):set(self.data.pwd .. " ")
+   ui.below(cell, "prompt"):resize()
 end
 
 function shell.on_key(self, key)
-   local history = self.parent.parent.parent
-   local window = self.parent.parent
+   local column = ui.above(self, "column")
+   local cell = ui.above(self, "cell")
    if key == "Ctrl L" then
-      history.children = {}
-      history.data.add_prompt(history, "$", " " .. self.data.pwd .. " ", nil, { pwd = self.data.pwd })
+      column.children = {}
+      column.data.add_cell(column, "$", self.data.pwd .. " ", nil, { pwd = self.data.pwd })
       return true
    elseif key == "Ctrl Tab" then
-      history.data.add_prompt(history, "$", " " .. self.data.pwd .. " ", "right", { pwd = self.data.pwd })
+      column.data.add_cell(column, "$", self.data.pwd .. " ", "right", { pwd = self.data.pwd })
       return true
    elseif key == "Ctrl A" then
       self:cursor_set(0)
@@ -48,18 +47,25 @@ function shell.on_key(self, key)
       self:cursor_set(math.huge)
       return true
    elseif key == "Up" then
-      local prev, cur = ui.previous_sibling(window)
+      local prev, cur = ui.previous_sibling(cell)
       if prev then
-         local prevprompt = prev.children[1].children.prompt
-         if self.text == "" and cur == #history.children and prevprompt.data.pwd == self.data.pwd then
-            history:remove_n_children_below(1, cur - 1)
+         local prevprompt = ui.below(prev, "prompt")
+         if self.text == "" and cur == #column.children and prevprompt.data.pwd == self.data.pwd then
+            column:remove_n_children_below(1, cur - 1)
          end
-         ui.set_focus(prevprompt)
+         ui.set_focus(prev)
       end
    elseif key == "Down" then
-      local next = ui.next_sibling(window)
+      if #cell.children == 2 then
+         ui.set_focus(cell.children[2].children[1])
+         cell.children[2].scroll_v = 0
+         cell.children[2].scroll_h = 0
+         cell:resize()
+         return true
+      end
+      local next = ui.next_sibling(cell)
       if next then
-         ui.set_focus(next.children[1].children.prompt)
+         ui.set_focus(ui.below(next, "prompt"))
       else
          if self.text ~= "" then
             add_cell(self)
@@ -69,7 +75,11 @@ function shell.on_key(self, key)
 end
 
 function shell.eval(self, text)
-   local window = self.parent.parent
+   local cell = ui.above(self, "cell")
+   local context = ui.below(cell, "context")
+   local prompt = ui.below(cell, "prompt")
+   local output = ui.below(cell, "output")
+
    self.data = self.data or {}
 
    local nextcmd = true
@@ -85,19 +95,19 @@ function shell.eval(self, text)
          self.data.pwd = self.data.pwd .. "/" .. pwd
       end
       self.data.pwd = normalize(self.data.pwd)
-      self.parent.children.context:set(" " .. self.data.pwd .. " ")
-      self.parent.children.prompt:set("")
+      context:set(self.data.pwd .. " ")
+      prompt:set("")
       text = "ls | column | expand"
       nextcmd = false
    end
-   if window.children.output then
-      window.children.output:remove_n_children_below(math.huge, 0)
+   if output then
+      output:remove_n_children_below(math.huge, 0)
    end
    if #text > 0 then
       local fds = {}
       fds.stdout_r, fds.stdout_w = unistd.pipe()
       fds.stderr_r, fds.stderr_w = unistd.pipe()
-      pipes[window] = fds
+      pipes[cell] = fds
       local childpid = unistd.fork()
       if childpid == 0 then
          -- child process
@@ -123,16 +133,16 @@ end
 
 local TEXT_W = 492 - 8
 
-local function poll_fd(win, fd, color)
+local function poll_fd(cell, fd, color)
    local data = poll.rpoll(fd, 0)
    if data == 1 then
       local list
       local cont = false
-      if #win.children == 1 then
-         local list = ui.vbox({ name = "output", min_w = TEXT_W, max_w = TEXT_W * 2, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x77000000, border = 0x00ffff })
-         win:add_child(list)
+      if #cell.children == 1 then
+         local list = ui.vbox({ name = "output", min_w = TEXT_W, max_w = TEXT_W * 2, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x77000000, border = 0x00ffff, focus_fill_color = 0x114444 })
+         cell:add_child(list)
       else
-         list = win.children[2]
+         list = cell.children[2]
          cont = true
       end
       if list then
@@ -154,9 +164,9 @@ local function poll_fd(win, fd, color)
 end
 
 function shell.frame()
-   for win, fds in pairs(pipes) do
-      poll_fd(win, fds.stdout_r, 0xffffff)
-      poll_fd(win, fds.stderr_r, 0xff7777)
+   for cell, fds in pairs(pipes) do
+      poll_fd(cell, fds.stdout_r, 0xffffff)
+      poll_fd(cell, fds.stderr_r, 0xff7777)
    end
 end
 
