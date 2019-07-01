@@ -492,6 +492,7 @@ local function make_box(flags, children, type)
       on_wheel = flags.scrollable ~= false and box_on_wheel,
       on_drag = flags.scrollable ~= false and box_on_drag,
       on_click = flags.on_click,
+      on_key = flags.on_key,
       add_child = box_add_child,
       add_children_below = box_add_children_below,
       remove_n_children_below = box_remove_n_children_below,
