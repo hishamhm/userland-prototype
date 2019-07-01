@@ -57,6 +57,17 @@ local function add_prompt(column, context, text, dir, data)
       data = {
          context = context,
       },
+      on_key = function(self, key, is_text, is_repeat)
+         if is_text then
+            local prompt = self.children[1].children.prompt
+            prompt:on_key(key, is_text, is_repeat)
+            ui.set_focus(prompt)
+            return true
+         elseif key == "Return" then
+            ui.set_focus(self.children[1].children.prompt)
+            return true
+         end
+      end,
       on_click = function(self)
          ui.set_focus(self.children[1].children.prompt)
          return true
@@ -77,7 +88,7 @@ local function add_prompt(column, context, text, dir, data)
          }),
       })
    })
-   ui.set_focus(window.children[1].children.prompt)
+   ui.set_focus(window)
    if dir == "right" then
       column = add_column()
    end
@@ -107,6 +118,16 @@ ui.on_key(function(focus, key, is_text, is_repeat)
    elseif key == "Ctrl F" and not is_repeat then
       fullscreen = not fullscreen
       ui.fullscreen(fullscreen)
+   elseif key == "Up" then
+      local prev = ui.previous_sibling(focus)
+      if prev then
+         ui.set_focus(prev)
+      end
+   elseif key == "Down" then
+      local next = ui.next_sibling(focus)
+      if next then
+         ui.set_focus(next)
+      end
    end
 end)
 
