@@ -19,7 +19,8 @@ local function prompt_eval(self, text)
    elseif text:match("^debug") then
       return debugger.new(self)
    else
-      self.text = self.parent.parent.parent.name .. #self.parent.parent.parent.children .. " = " .. self.text
+      local id = self.parent.parent.parent.name .. #self.parent.parent.parent.children
+      self.parent.children.context:set(id .. " ")
       self:resize()
       local column = self.parent.parent.parent
       column.data.add_prompt(column, "?", " ? ")
