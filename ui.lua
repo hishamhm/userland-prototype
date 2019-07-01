@@ -694,7 +694,7 @@ local function run_on_key(key, is_text, is_repeat)
       end
    end
    if on_key_cb then
-      on_key_cb(key, is_text, is_repeat)
+      on_key_cb(focus, key, is_text, is_repeat)
    end
 end
 

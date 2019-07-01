@@ -99,7 +99,7 @@ column.data.add_prompt(column, "?", " ? ")
 
 local fullscreen = false
 
-ui.on_key(function(key, is_text, is_repeat)
+ui.on_key(function(focus, key, is_text, is_repeat)
    --print(key)
    if key == "Escape" then
       ui.quit()
