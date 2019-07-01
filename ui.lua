@@ -454,8 +454,9 @@ end
 local box_children_mt = {
    __index = function(t, k)
       for i = 1, #t do
-         if t[i].name == k then
-            return t[i]
+         local ti = rawget(t, i)
+         if ti.name == k then
+            return ti
          end
       end
    end
