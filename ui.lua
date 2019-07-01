@@ -743,16 +743,23 @@ local function draw_background()
    end
 end
 
+local mouse_obj
+
 local function mouse_callback(cb_name, x, y)
-   local objs = objects_under_mouse()
-   for _, obj in ipairs(objs) do
-      io.write((obj.name or obj.type) .. " ")
+   if mouse_obj then
+      mouse_obj[cb_name](mouse_obj, x, y)
+      return
    end
-   io.write("\n")
+   local objs = objects_under_mouse()
+--   for _, obj in ipairs(objs) do
+--      io.write((obj.name or obj.type) .. " ")
+--   end
+--   io.write("\n")
    for _, obj in ipairs(objs) do
       if obj[cb_name] then
+         mouse_obj = obj
          obj[cb_name](obj, x, y)
-         break
+         return
       end
    end
 end
@@ -797,12 +804,16 @@ function ui.run(frame)
             focus = objs[1]
             update = true
          elseif e.type == SDL.event.MouseButtonUp then
+            mouse_obj = nil
             mouse_callback("on_click")
+            mouse_obj = nil
          elseif e.type == SDL.event.MouseWheel then
             mouse_callback("on_wheel", e.x, e.y)
          elseif e.type == SDL.event.MouseMotion then
             if e.state[1] == 1 then
                mouse_callback("on_drag", e.xrel, e.yrel)
+            else
+               mouse_obj = nil
             end
          else
             local w, h = win:getSize()
