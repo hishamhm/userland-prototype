@@ -710,8 +710,8 @@ local function objects_under_mouse(obj, off, rets, p)
       for _, child in ipairs(obj.children) do
          local offchild = offset(child, off)
          if SDL.pointInRect(p, offchild) then
-            offchild.y = offchild.y - (obj.scroll_v or 0)
-            offchild.x = offchild.x - (obj.scroll_h or 0)
+            offchild.y = offchild.y - (child.scroll_v or 0)
+            offchild.x = offchild.x - (child.scroll_h or 0)
             objects_under_mouse(child, offchild, rets, p)
          end
       end
