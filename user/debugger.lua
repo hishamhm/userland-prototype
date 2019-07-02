@@ -6,9 +6,10 @@ function debugger.init(ui_)
    ui = ui_
 end
 
-local function make_tree(tv, tk, out, seen)
+local function make_tree(tv, tk, out, upvs, seen)
    out = out or {}
    seen = seen or {}
+   upvs = upvs or out
    if type(tv) == "table" then
       if seen[tv] then
          return nil
@@ -23,7 +24,7 @@ local function make_tree(tv, tk, out, seen)
          r = out
       end
       for k, v in pairs(tv) do
-         make_tree(v, k, r, seen)
+         make_tree(v, k, r, upvs, seen)
       end
    elseif type(tv) == "function" then
       if seen[tv] then
@@ -42,7 +43,7 @@ local function make_tree(tv, tk, out, seen)
             uv = "nil"
          end
          if uk ~= "_ENV" then
-            make_tree(uv, "(upvalue) " .. uk, out, seen)
+            make_tree(uv, "(upvalue) " .. uk, upvs, upvs, seen)
          end
          i = i + 1
       end
