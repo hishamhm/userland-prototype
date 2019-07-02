@@ -55,6 +55,7 @@ function shell.on_key(self, key)
          end
          ui.set_focus(prev)
       end
+      return true
    elseif key == "Down" then
       if #cell.children == 2 then
          ui.set_focus(cell.children[2].children[1])
@@ -71,6 +72,7 @@ function shell.on_key(self, key)
             add_cell(self)
          end
       end
+      return true
    end
 end
 
@@ -131,6 +133,28 @@ function shell.eval(self, text)
    end
 end
 
+local function output_on_key(self, key, is_text, is_repeat, focus)
+   if not focus then
+      return
+   end
+
+   if (self.type == "vbox" and key == "Up")
+   or (self.type == "hbox" and key == "Left") then
+      local prev = ui.previous_sibling(focus)
+      if prev then
+         ui.set_focus(prev)
+      end
+      return true
+   elseif (self.type == "vbox" and key == "Down")
+   or (self.type == "hbox" and key == "Right") then
+      local next = ui.next_sibling(focus)
+      if next then
+         ui.set_focus(next)
+      end
+      return true
+   end
+end
+
 local TEXT_W = 492 - 8
 
 local function poll_fd(cell, fd, color)
@@ -139,7 +163,19 @@ local function poll_fd(cell, fd, color)
       local list
       local cont = false
       if #cell.children == 1 then
-         local list = ui.vbox({ name = "output", min_w = TEXT_W, max_w = TEXT_W * 2, max_h = 200, spacing = 4, scroll_by = 21, fill = 0x77000000, border = 0x00ffff, focus_fill_color = 0x114444 })
+         local list = ui.vbox({
+            name = "output",
+            min_w = TEXT_W,
+            max_w = TEXT_W * 2,
+            max_h = 200,
+            spacing = 4,
+            scroll_by = 21,
+            fill = 0x77000000,
+            border = 0x00ffff,
+            focus_fill_color = 0x114444,
+            on_key = output_on_key,
+            on_click = function() return true end,
+         })
          cell:add_child(list)
       else
          list = cell.children[2]

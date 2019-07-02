@@ -34,8 +34,27 @@ local function expand(rect, n)
   return { x = rect.x - n, y = rect.y - n, w = rect.w + n * 2, h = rect.h + n * 2 }
 end
 
+local glow_curve = { 0.80, 0.40, 0.20, 0.10, 0.05 }
+
+local function glow(rect, color)
+   for i = 1, 5 do
+      local factor = glow_curve[i]
+      local v = (0xff - math.floor(0xff * factor)) << 24
+      rdr:setDrawColor(alpha(color + v))
+      rdr:drawRect(expand(rect, i))
+   end
+end
+
 function ui.set_focus(obj)
    focus = assert(obj)
+   if focus.parent then
+      if focus.y - focus.parent.scroll_v < 0 then
+         focus.parent.scroll_v = focus.y
+      end
+      if focus.y - focus.parent.scroll_v + focus.h > focus.parent.h then
+         focus.parent.scroll_v = focus.y - focus.parent.h + focus.h
+      end
+   end
    update = true
 end
 
@@ -207,9 +226,9 @@ local function text_on_key(self, key, is_text, is_repeat)
       self:backspace()
       self:resize()
       return true
-   elseif key == "Return" then
+   elseif key == "Return" or key == "Shift Return" then
       if self.eval and not is_repeat and self.text ~= "" then
-         self:eval(self.text)
+         self:eval(self.text, key)
          return true
       end
    elseif key == "Left" then
@@ -271,7 +290,7 @@ function ui.text(text, flags)
       backspace = text_backspace,
       calc_cursor_x = text_calc_cursor_x,
       resize = text_resize,
-      on_key = text_on_key,
+      on_key = flags.editable and text_on_key,
       on_click = flags.on_click,
    }
    obj:resize()
@@ -613,11 +632,7 @@ local function box_draw(self, off, clip)
       local color = (self == focus or self == focus.parent) and self.focus_border or self.border
       if self == focus or self == focus.parent then
          rdr:setClipRect(root)
-         for i = 1, 5 do
-            local v = (0xff - math.floor(0x99 / i)) << 24
-            rdr:setDrawColor(alpha(color + v))
-            rdr:drawRect(expand(offself, i))
-         end
+         glow(offself, color)
       end
       rdr:setDrawColor(alpha(color))
       rdr:drawRect(offself)
@@ -663,9 +678,7 @@ draw = function(obj, off, clip)
       end
    end
 
-   if clip then
-      rdr:setClipRect(clip)
-   end
+   rdr:setClipRect(clip)
 
    if obj.type == "image" then
       if not obj.tex then
@@ -686,17 +699,28 @@ draw = function(obj, off, clip)
       if not obj.tex then
          obj:render()
       end
-      if obj.editable and obj.cursor and obj == focus then
-         local cliprect = rdr:getClipRect()
-         cliprect.w = cliprect.w + 10
-         rdr:setClipRect(cliprect)
-      end
-      copy_to_rdr(obj, off)
-      if obj.editable and obj == focus then
+      local show_cursor = obj.editable and (obj == focus or ui.above(obj, "cell") == focus)
+      local line
+      if show_cursor then
          if not obj.cursor_x then
             obj:calc_cursor_x()
          end
-         rdr:drawLine({ x1 = obj.cursor_x + off.x, y1 = obj.y + 1 + off.y, x2 = obj.cursor_x + off.x, y2 = obj.y + obj.h - 2 + off.y })
+         clip.w = clip.w + 10
+         line = { x1 = obj.cursor_x + off.x, y1 = obj.y + 1 + off.y, x2 = obj.cursor_x + off.x, y2 = obj.y + obj.h - 2 + off.y }
+         if focus == obj then
+            rdr:setClipRect(root)
+            glow({ x = line.x1, y = line.y1, w = 1, h = (line.y2 - line.y1 + 1) }, 0x009999)
+         end
+      end
+      rdr:setClipRect(clip)
+      copy_to_rdr(obj, off)
+      if show_cursor then
+         if focus == obj then
+            rdr:setDrawColor(alpha(0xffffff))
+         else
+            rdr:setDrawColor(alpha(0x77ffff))
+         end
+         rdr:drawLine(line)
       end
    elseif obj.type == "rect" then
       if obj.fill then
@@ -716,14 +740,20 @@ draw = function(obj, off, clip)
 end
 
 local function run_on_key(key, is_text, is_repeat)
-   if focus and focus.on_key then
-      local done = focus:on_key(key, is_text, is_repeat)
-      if done then
-         return
+   if focus then
+      local f = focus
+      while f do
+         if f.on_key then
+            local done = f:on_key(key, is_text, is_repeat, focus)
+            if done then
+               return
+            end
+         end
+         f = f.parent
       end
    end
    if on_key_cb then
-      on_key_cb(focus, key, is_text, is_repeat)
+      on_key_cb(focus, key, is_text, is_repeat, focus)
    end
 end
 
@@ -830,7 +860,7 @@ function ui.run(frame)
             run_on_key(e.text, true, e["repeat"])
          elseif e.type == SDL.event.MouseButtonDown then
             local objs = objects_under_mouse()
-            focus = objs[1]
+            ui.set_focus(objs[1])
             update = true
          elseif e.type == SDL.event.MouseButtonUp then
             mouse_obj = nil

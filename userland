@@ -48,7 +48,7 @@ local function right(self)
    end
 end
 
-local function prompt_eval(self, text)
+local function prompt_eval(self, text, key)
    local cell = ui.above(self, "cell")
    local mode = cell.data.mode
    if mode == "$" then
@@ -63,7 +63,11 @@ local function prompt_eval(self, text)
          context:set(id .. " ")
          self:resize()
       end
-      down(cell)
+      if key == "Return" then
+         down(cell)
+      elseif key == "Shift Return" then
+         right(cell)
+      end
    end
 end
 
@@ -100,7 +104,7 @@ local function add_cell(column, mode, text, dir, data)
       },
       on_key = function(self, key, is_text, is_repeat)
          local prompt = ui.below(self, "prompt")
-         if is_text then
+         if is_text or key == "Backspace" then
             prompt:on_key(key, is_text, is_repeat)
             ui.set_focus(prompt)
             return true
@@ -149,29 +153,43 @@ add_column = function()
    }))
 end
 
-local column = add_column()
-column.data.add_cell(column, "?", " ? ")
+local firstcol = add_column()
+firstcol.data.add_cell(firstcol, "?", " ? ")
 
 local fullscreen = false
 
 ui.on_key(function(focus, key, is_text, is_repeat)
    --print(key)
    if key == "Escape" then
-      ui.quit()
+      if focus.name == "cell" then
+         ui.quit()
+      else
+         ui.set_focus(ui.above(focus, "cell"))
+      end
    elseif key == "Ctrl F" and not is_repeat then
       fullscreen = not fullscreen
       ui.fullscreen(fullscreen)
    elseif key == "Up" then
-      local prev = ui.previous_sibling(focus)
+      local cell = ui.above(focus, "cell")
+      local column = ui.above(cell, "column")
+      local prev, i = ui.previous_sibling(cell)
       if prev then
          ui.set_focus(prev)
+         if i == #column.children and ui.below(cell, "prompt").text == "" then
+            column:remove_n_children_below(1, i - 1)
+         end
       end
    elseif key == "Down" then
       down(focus)
    elseif key == "Left" then
-      local prevcol = ui.previous_sibling(ui.above(focus, "column"))
+      local cell = ui.above(focus, "cell")
+      local column = ui.above(cell, "column")
+      local prevcol, i = ui.previous_sibling(column)
       if prevcol then
          ui.set_focus(prevcol.children[1]) -- FIXME cell visually to the left
+         if #column.children == 1 and ui.below(column.children[1], "prompt").text == "" then
+            columns:remove_n_children_below(1, i - 1)
+         end
       end
    elseif key == "Right" then
       right(focus)
