@@ -74,16 +74,19 @@ end
 local function prompt_on_key(self, key, is_text, is_repeat)
    local cell = ui.above(self, "cell")
    local mode = cell.data.mode
-   if mode == "?" then
-      if key == "$" then
-         shell.enable(self)
+   if self.text == "" and not is_repeat then
+      if mode == "?" then
+         if key == "$" or key == "Ctrl Return" then
+            shell.enable(self)
+            return true
+         end
+      end
+      if key == "Ctrl Backspace" then
+         cell.data.mode = "?"
+         ui.below(cell, "context"):set(" ? ")
+         self:resize()
          return true
       end
-   end
-   if key == "Ctrl Backspace" and self.text == "" and not is_repeat then
-      cell.data.mode = "?"
-      ui.below(cell, "context"):set(" ? ")
-      return true
    end
    if mode == "$" then
       return shell.on_key(self, key)
@@ -104,11 +107,11 @@ local function add_cell(column, mode, text, dir, data)
       },
       on_key = function(self, key, is_text, is_repeat)
          local prompt = ui.below(self, "prompt")
-         if is_text or key == "Backspace" then
-            prompt:on_key(key, is_text, is_repeat)
+         if key == "Return" then
             ui.set_focus(prompt)
             return true
-         elseif key == "Return" then
+         elseif is_text or key == "Backspace" or key == "Ctrl Return" then
+            prompt:on_key(key, is_text, is_repeat)
             ui.set_focus(prompt)
             return true
          end
