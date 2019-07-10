@@ -273,6 +273,7 @@ function ui.text(text, flags)
       min_w = flags.min_w,
       min_h = flags.min_h,
       editable = flags.editable,
+      focusable = flags.focusable,
       color = flags.color or 0xffffff,
       fill = flags.fill,
       border = flags.border,
@@ -860,7 +861,12 @@ function ui.run(frame)
             run_on_key(e.text, true, e["repeat"])
          elseif e.type == SDL.event.MouseButtonDown then
             local objs = objects_under_mouse()
-            ui.set_focus(objs[1])
+            for _, obj in ipairs(objs) do
+               if not (obj.focusable == false) then
+                  ui.set_focus(obj)
+                  break
+               end
+            end
             update = true
          elseif e.type == SDL.event.MouseButtonUp then
             mouse_obj = nil
