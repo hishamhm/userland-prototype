@@ -37,6 +37,20 @@ function shell.on_key(self, key)
       column.children = {}
       column.data.add_cell(column, "$", self.data.pwd .. " ", nil, { pwd = self.data.pwd })
       return true
+   elseif key == "Ctrl M" then
+      local output = ui.below(cell, "output")
+      if output then
+         output.max_h = math.min(output.max_h * 2, output.total_h)
+         output:resize()
+      end
+      return true
+   elseif key == "Ctrl N" then
+      local output = ui.below(cell, "output")
+      if output then
+         output.max_h = math.max(21, math.floor(output.max_h / 2))
+         output:resize()
+      end
+      return true
    elseif key == "Ctrl Tab" then
       column.data.add_cell(column, "$", self.data.pwd .. " ", "right", { pwd = self.data.pwd })
       return true
