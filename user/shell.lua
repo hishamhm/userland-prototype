@@ -4,6 +4,8 @@ local ui
 local unistd = require("posix.unistd")
 local poll = require("posix.poll")
 
+local syntect = require("syntect")
+
 local pipes = {}
 
 local function normalize(dir)
@@ -90,63 +92,6 @@ function shell.on_key(self, key)
    end
 end
 
-function shell.eval(self, text)
-   local cell = ui.above(self, "cell")
-   local context = ui.below(cell, "context")
-   local prompt = ui.below(cell, "prompt")
-   local output = ui.below(cell, "output")
-
-   self.data = self.data or {}
-
-   local nextcmd = true
-   local pwd = text:match("^%s*cd%s*(.*)%s*$")
-   if pwd then
-      if pwd == "" then
-         pwd = os.getenv("HOME")
-      end
-      pwd = pwd:gsub("^~", os.getenv("HOME") .. "/")
-      if pwd:match("^/") then
-         self.data.pwd = pwd
-      else
-         self.data.pwd = self.data.pwd .. "/" .. pwd
-      end
-      self.data.pwd = normalize(self.data.pwd)
-      context:set(self.data.pwd .. " ")
-      prompt:set("")
-      text = "ls | column | expand"
-      nextcmd = false
-   end
-   if output then
-      output:remove_n_children_below(math.huge, 0)
-   end
-   if #text > 0 then
-      local fds = {}
-      fds.stdout_r, fds.stdout_w = unistd.pipe()
-      fds.stderr_r, fds.stderr_w = unistd.pipe()
-      pipes[cell] = fds
-      local childpid = unistd.fork()
-      if childpid == 0 then
-         -- child process
-         unistd.close(fds.stdout_r)
-         unistd.close(fds.stderr_r)
-         unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
-         unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
-         local cd_to = ""
-         local cd_done = ""
-         if self.data.pwd then
-            cd_to = "cd " .. self.data.pwd .. " && ( "
-            cd_done = " )"
-         end
-         os.execute(cd_to .. text .. cd_done)
-         os.exit(0)
-      else
-         if nextcmd then
-            add_cell(self)
-         end
-      end
-   end
-end
-
 local function output_on_key(self, key, is_text, is_repeat, focus)
    if not focus then
       return
@@ -171,26 +116,126 @@ end
 
 local TEXT_W = 492 - 8
 
+local function add_output(cell)
+   local list = ui.vbox({
+      name = "output",
+      min_w = TEXT_W,
+      max_w = TEXT_W * 2,
+      max_h = 450,
+      spacing = 4,
+      scroll_by = 21,
+      fill = 0x77000000,
+      border = 0x00ffff,
+      focus_fill_color = 0x114444,
+      on_key = output_on_key,
+      on_click = function() return true end,
+   })
+   cell:add_child(list)
+   return list
+end
+
+function shell.eval(self, input)
+   local cell = ui.above(self, "cell")
+   local context = ui.below(cell, "context")
+   local prompt = ui.below(cell, "prompt")
+   local output = ui.below(cell, "output")
+
+   self.data = self.data or {}
+
+   local nextcmd = true
+   local cmd, arg = input:match("^%s*([^%s]+)%s*(.*)%s*$")
+
+   if cmd == "cat" then
+      if arg == "" then
+         return
+      end
+
+      if not arg:match("^/") then
+         arg = self.data.pwd:gsub("^~", os.getenv("HOME") .. "/") .. "/" .. arg
+      end
+
+      local list = add_output(cell)
+      add_cell(self)
+
+      local lines, err = syntect.highlight_file(arg)
+      if not lines then
+         list:add_child(ui.text(err, { color = 0xff0000 }))
+         return
+      end
+      local regions = {}
+      for _, line in ipairs(lines) do
+         for i = 1, #line, 2 do
+            local style = line[i]
+            local text, nl = line[i+1]:match("([^\n]*)(\n?)")
+            table.insert(regions, ui.text(text, { color = style, focusable = false }))
+            if nl == "\n" then
+               list:add_child(ui.hbox({ scrollable = false }, regions))
+               regions = {}
+            end
+         end
+      end
+      return
+   end
+
+   if cmd == "cd" then
+      local pwd = arg
+      if pwd == "" then
+         pwd = os.getenv("HOME")
+      end
+      pwd = pwd:gsub("^~", os.getenv("HOME") .. "/")
+      if pwd:match("^/") then
+         self.data.pwd = pwd
+      else
+         self.data.pwd = self.data.pwd .. "/" .. pwd
+      end
+      self.data.pwd = normalize(self.data.pwd)
+      context:set(self.data.pwd .. " ")
+      prompt:set("")
+      text = "ls | column | expand"
+      nextcmd = false
+   end
+   if output then
+      output:remove_n_children_below(math.huge, 0)
+   end
+   if #input > 0 then
+      local fds = {}
+      fds.stdout_r, fds.stdout_w = unistd.pipe()
+      fds.stderr_r, fds.stderr_w = unistd.pipe()
+      pipes[cell] = fds
+      local childpid = unistd.fork()
+      if childpid == 0 then
+         -- child process
+         unistd.close(fds.stdout_r)
+         unistd.close(fds.stderr_r)
+         unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
+         unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
+         local cd_to = ""
+         local cd_done = ""
+         if self.data.pwd then
+            cd_to = "cd " .. self.data.pwd .. " && ( "
+            cd_done = " )"
+         end
+         os.execute(cd_to .. input .. cd_done)
+         unistd.close(fds.stdout_w)
+         unistd.close(fds.stderr_w)
+         unistd.close(unistd.STDOUT_FILENO)
+         unistd.close(unistd.STDERR_FILENO)
+         os.exit(0)
+      else
+         if nextcmd then
+            add_cell(self)
+         end
+      end
+   end
+end
+
 local function poll_fd(cell, fd, color)
    local data = poll.rpoll(fd, 0)
    if data == 1 then
       local list
       local cont = false
       if #cell.children == 1 then
-         local list = ui.vbox({
-            name = "output",
-            min_w = TEXT_W,
-            max_w = TEXT_W * 2,
-            max_h = 200,
-            spacing = 4,
-            scroll_by = 21,
-            fill = 0x77000000,
-            border = 0x00ffff,
-            focus_fill_color = 0x114444,
-            on_key = output_on_key,
-            on_click = function() return true end,
-         })
-         cell:add_child(list)
+         local list = add_output(cell)
       else
          list = cell.children[2]
          cont = true
