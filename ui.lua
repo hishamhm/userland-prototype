@@ -58,6 +58,10 @@ function ui.set_focus(obj)
    update = true
 end
 
+local function SDL_WINDOWPOS_CENTERED_DISPLAY(n)
+   return 0x2FFF0000 + n
+end
+
 function ui.init()
    local ret, err = SDL.init()
    if not ret then
@@ -71,8 +75,25 @@ function ui.init()
 
    font = TTF.open("DejaVuSansMono.ttf", 14)
 
+   local _, mx, my = SDL.getMouseState()
+   local mp = { x = mx, y = my }
+   local curr_display = 0
+   for i = 0, math.huge do
+      local rect = SDL.getDisplayBounds(i)
+      if not rect then
+         break
+      end
+      if SDL.pointInRect(mp, rect) then
+         curr_display = i
+         break
+      end
+   end
+   curr_display = 1 -- FIXME
+
    win, err = SDL.createWindow({
       title = "Userland",
+      x = SDL_WINDOWPOS_CENTERED_DISPLAY(curr_display),
+      y = SDL_WINDOWPOS_CENTERED_DISPLAY(curr_display),
       width = width,
       height = height,
       flags = { SDL.flags.OpenGL },
