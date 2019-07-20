@@ -632,7 +632,7 @@ function ui.below(t, k)
    end
 end
 
-local function make_box(flags, children, type)
+local function ui_box(flags, children, type)
    flags = flags or E
    local obj = {
       name = flags.name,
@@ -679,11 +679,11 @@ local function make_box(flags, children, type)
 end
 
 function ui.vbox(flags, children)
-   return make_box(flags, children, "vbox")
+   return ui_box(flags, children, "vbox")
 end
 
 function ui.hbox(flags, children)
-   return make_box(flags, children, "hbox")
+   return ui_box(flags, children, "hbox")
 end
 
 function ui.in_root(obj)
