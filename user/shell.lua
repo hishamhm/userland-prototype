@@ -67,7 +67,7 @@ function shell.on_key(self, key)
       if prev then
          local prevprompt = ui.below(prev, "prompt")
          if self.text == "" and cur == #column.children and prevprompt.data.pwd == self.data.pwd then
-            column:remove_n_children_below(1, cur - 1)
+            column:remove_n_children_at(1, cur)
          end
          ui.set_focus(prev)
       end
@@ -195,7 +195,7 @@ function shell.eval(self, input)
       nextcmd = false
    end
    if output then
-      output:remove_n_children_below(math.huge, 0)
+      output:remove_n_children_at()
    end
    if #input > 0 then
       local fds = {}

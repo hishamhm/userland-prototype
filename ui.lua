@@ -447,7 +447,7 @@ local function tree_collapser_on_click(self)
             end
          end
       end
-      tree:remove_n_children_below(#collapse, pos)
+      tree:remove_n_children_at(#collapse, pos + 1)
       line.data.collapsed = collapse
    end
 end
@@ -566,9 +566,16 @@ local function box_add_children_below(self, children, item)
    update = true
 end
 
-local function box_remove_n_children_below(self, n, pos)
-   for _ = pos + 1, math.min(pos + n, #self.children) do
-      detach(self.children[pos + 1])
+--- Removes n children starting at a given position.
+-- Calling this method with no arguments removes all children.
+-- @param self the box object
+-- @param n amount of children to remove (defaults to all children)
+-- @param pos position of the first child to remove (defaults to 1)
+local function box_remove_n_children_at(self, n, pos)
+   n = n or #self.children
+   pos = pos or 1
+   for _ = pos, math.min(pos + n - 1, #self.children) do
+      detach(self.children[pos])
    end
    self:resize()
    update = true
@@ -659,7 +666,7 @@ local function make_box(flags, children, type)
       on_key = flags.on_key,
       add_child = box_add_child,
       add_children_below = box_add_children_below,
-      remove_n_children_below = box_remove_n_children_below,
+      remove_n_children_at = box_remove_n_children_at,
    }
 
    for _, child in ipairs(obj.children) do

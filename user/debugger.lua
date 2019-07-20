@@ -59,7 +59,7 @@ function debugger.new(self)
    local column = ui.above(self, "column")
    local arg = self.text:match("debug%s*([^%s]+)")
    local root = arg and package.loaded[arg] or _G
-   cell:remove_n_children_below(1, 1)
+   cell:remove_n_children_at(1, 2)
    cell:add_child(ui.tree({
       name = "tree",
       scroll_by = 21,

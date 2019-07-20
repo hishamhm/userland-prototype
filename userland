@@ -179,7 +179,7 @@ ui.on_key(function(focus, key, is_text, is_repeat)
       if prev then
          ui.set_focus(prev)
          if i == #column.children and ui.below(cell, "prompt").text == "" then
-            column:remove_n_children_below(1, i - 1)
+            column:remove_n_children_at(1, i)
          end
       end
    elseif key == "Down" then
@@ -191,7 +191,7 @@ ui.on_key(function(focus, key, is_text, is_repeat)
       if prevcol then
          ui.set_focus(prevcol.children[1]) -- FIXME cell visually to the left
          if #column.children == 1 and ui.below(column.children[1], "prompt").text == "" then
-            columns:remove_n_children_below(1, i - 1)
+            columns:remove_n_children_at(1, i)
          end
       end
    elseif key == "Right" then
