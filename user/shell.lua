@@ -3,21 +3,25 @@ local shell = {}
 local ui
 local unistd = require("posix.unistd")
 local poll = require("posix.poll")
+local lfs = require("lfs")
 
 local syntect = require("syntect")
 
 local pipes = {}
 
 local function normalize(dir)
-   dir = dir:gsub("^" .. os.getenv("HOME"), "~")
    dir = dir .. "/"
    dir = dir:gsub("//", "/"):gsub("/[^/]+/%.%./", "/"):gsub("//", "/")
    return dir
 end
 
+local function show_dir(dir)
+   return dir:gsub("^" .. os.getenv("HOME"), "~")
+end
+
 local function add_cell(self)
    local column = ui.above(self, "column")
-   column.data.add_cell(column, "$", (self.data.pwd or "") .. " ", nil, { pwd = self.data.pwd })
+   column.data.add_cell(column, { mode = "shell" }, show_dir(self.data.pwd), nil, { pwd = self.data.pwd })
 end
 
 function shell.init(ui_)
@@ -27,8 +31,8 @@ end
 function shell.enable(self)
    local cell = ui.above(self, "cell")
    self.data.pwd = self.data.pwd or normalize(os.getenv("PWD"))
-   cell.data.mode = "$"
-   ui.below(cell, "context"):set(self.data.pwd .. " ")
+   cell.data.mode = "shell"
+   ui.below(cell, "context"):set(show_dir(self.data.pwd))
    ui.below(cell, "prompt"):resize()
 end
 
@@ -37,7 +41,7 @@ function shell.on_key(self, key)
    local cell = ui.above(self, "cell")
    if key == "Ctrl L" then
       column.children = {}
-      column.data.add_cell(column, "$", self.data.pwd .. " ", nil, { pwd = self.data.pwd })
+      column.data.add_cell(column, { mode = "shell" }, self.data.pwd, nil, { pwd = self.data.pwd })
       return true
    elseif key == "Ctrl M" then
       local output = ui.below(cell, "output")
@@ -54,7 +58,7 @@ function shell.on_key(self, key)
       end
       return true
    elseif key == "Ctrl Tab" then
-      column.data.add_cell(column, "$", self.data.pwd .. " ", "right", { pwd = self.data.pwd })
+      column.data.add_cell(column, { mode = "shell" }, self.data.pwd, "right", { pwd = self.data.pwd })
       return true
    elseif key == "Ctrl A" then
       self:cursor_set(0)
@@ -111,13 +115,21 @@ local function output_on_key(self, key, is_text, is_repeat, focus)
          ui.set_focus(next)
       end
       return true
+   elseif key == "Return" and not is_repeat then
+      local prompt = ui.below(ui.above(self, "cell"), "prompt")
+      prompt:add(focus.text)
+      ui.set_focus(prompt)
    end
 end
 
 local TEXT_W = 492 - 8
 
 local function add_output(cell)
-   local list = ui.vbox({
+   local output = ui.below(cell, "output")
+   if output then
+      return output, true
+   end
+   output = ui.vbox({
       name = "output",
       min_w = TEXT_W,
       max_w = TEXT_W * 2,
@@ -130,8 +142,14 @@ local function add_output(cell)
       on_key = output_on_key,
       on_click = function() return true end,
    })
-   cell:add_child(list)
-   return list
+   cell:add_child(output)
+   return output, false
+end
+
+local function reset_output(cell)
+   local output = add_output(cell)
+   output:remove_n_children_at()
+   return output
 end
 
 function shell.eval(self, input)
@@ -154,12 +172,12 @@ function shell.eval(self, input)
          arg = self.data.pwd:gsub("^~", os.getenv("HOME") .. "/") .. "/" .. arg
       end
 
-      local list = add_output(cell)
+      local output = reset_output(cell)
       add_cell(self)
 
       local lines, err = syntect.highlight_file(arg)
       if not lines then
-         list:add_child(ui.text(err, { color = 0xff0000 }))
+         output:add_child(ui.text(err, { color = 0xff0000 }))
          return
       end
       local regions = {}
@@ -169,7 +187,7 @@ function shell.eval(self, input)
             local text, nl = line[i+1]:match("([^\n]*)(\n?)")
             table.insert(regions, ui.text(text, { color = style, focusable = false }))
             if nl == "\n" then
-               list:add_child(ui.hbox({ scrollable = false }, regions))
+               output:add_child(ui.hbox({ scrollable = false }, regions))
                regions = {}
             end
          end
@@ -183,17 +201,22 @@ function shell.eval(self, input)
          pwd = os.getenv("HOME")
       end
       pwd = pwd:gsub("^~", os.getenv("HOME") .. "/")
-      if pwd:match("^/") then
-         self.data.pwd = pwd
-      else
-         self.data.pwd = self.data.pwd .. "/" .. pwd
+      if not pwd:match("^/") then
+         pwd = self.data.pwd .. "/" .. pwd
       end
-      self.data.pwd = normalize(self.data.pwd)
-      context:set(self.data.pwd .. " ")
-      prompt:set("")
-      text = "ls | column | expand"
-      nextcmd = false
+      pwd = normalize(pwd)
+      local attrs = lfs.attributes(pwd)
+      if attrs and attrs.mode == "directory" then
+         self.data.pwd = pwd
+         context:set(show_dir(self.data.pwd))
+         prompt:set("")
+         input = "ls"
+         nextcmd = false
+      else
+         return
+      end
    end
+
    if output then
       output:remove_n_children_at()
    end
@@ -232,28 +255,21 @@ end
 local function poll_fd(cell, fd, color)
    local data = poll.rpoll(fd, 0)
    if data == 1 then
-      local list
-      local cont = false
-      if #cell.children == 1 then
-         local list = add_output(cell)
-      else
-         list = cell.children[2]
-         cont = true
-      end
-      if list then
+      local output, cont = add_output(cell)
+      if output then
          for line in unistd.read(fd, 1024):gmatch("([^\n]*)\n?") do
             -- FIXME proper tab expansion
             line = line:gsub("\t", "   ")
             -- FIXME don't merge stdout and stderr lines
-            if cont and #list.children > 0 then
-               list.children[#list.children]:cursor_move(math.huge)
-               list.children[#list.children]:add(line)
+            if cont and #output.children > 0 then
+               output.children[#output.children]:cursor_move(math.huge)
+               output.children[#output.children]:add(line)
             else
-               list:add_child(ui.text(line, { color = color }))
+               output:add_child(ui.text(line, { color = color }))
             end
             cont = false
          end
-         list.scroll_v = list.total_h - list.h
+         output.scroll_v = output.total_h - output.h
       end
    end
 end

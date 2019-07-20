@@ -70,7 +70,7 @@ function debugger.new(self)
       fill = 0x222222,
       border = 0x00ffff,
    }, make_tree(root)))
-   column.data.add_cell(column, "?", " ? ")
+   column.data.add_cell(column, { mode = "?" }, " ? ")
 end
 
 return debugger
