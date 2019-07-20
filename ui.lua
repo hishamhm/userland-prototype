@@ -848,7 +848,7 @@ draw = function(obj, off, clip)
          if focus == obj then
             rdr:setDrawColor(alpha(0xffffff))
          else
-            rdr:setDrawColor(alpha(0x77ffff))
+            rdr:setDrawColor(alpha(0x009999))
          end
          rdr:drawLine(line)
       end
