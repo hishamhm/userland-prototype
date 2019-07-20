@@ -186,7 +186,7 @@ local function text_add(self, str)
    update = true
 end
 
-local function text_backspace(self)
+local function text_backspace_char(self)
    if self.cursor > 0 then
       self.text = utf8_sub(self.text, 1, self.cursor - 1) .. utf8_sub(self.text, self.cursor + 1)
       self.cursor = self.cursor - 1
@@ -197,10 +197,94 @@ local function text_backspace(self)
    update = true
 end
 
-local function text_cursor_move(self, rel)
+local function prev_word(self)
+   local x = self.cursor - 1
+   local len = utf8.len(self.text)
+   while x > 0 do
+      local c = utf8_sub(self.text, x, x)
+      if c:match("^%W*$") then
+         x = x - 1
+      else
+         break
+      end
+   end
+   while x > 0 do
+      local c = utf8_sub(self.text, x, x)
+      if c:match("^%w*$") then
+         x = x - 1
+      else
+         break
+      end
+   end
+   return math.max(math.min(x, len), 0)
+end
+
+local function next_word(self)
+   local x = self.cursor + 1
+   local len = utf8.len(self.text)
+   while x < len do
+      local c = utf8_sub(self.text, x, x)
+      if c:match("^%w*$") then
+         x = x + 1
+      else
+         break
+      end
+   end
+   while x < len do
+      local c = utf8_sub(self.text, x, x)
+      if c:match("^%W*$") then
+         x = x + 1
+      else
+         x = x - 1
+         break
+      end
+   end
+   return math.max(math.min(x, len), 0)
+end
+
+local function text_backspace_word(self)
+   if self.cursor > 0 then
+      local x = prev_word(self)
+      self.text = utf8_sub(self.text, 1, x) .. utf8_sub(self.text, self.cursor + 1)
+      self.cursor = x
+      self.tex = nil
+      self.cursor_x = nil
+   end
+   self:resize()
+   update = true
+end
+
+local function text_delete_char(self)
+   if self.cursor < utf8.len(self.text) then
+      self.text = utf8_sub(self.text, 1, self.cursor) .. utf8_sub(self.text, self.cursor + 2)
+      self.tex = nil
+      self.cursor_x = nil
+   end
+   self:resize()
+   update = true
+end
+
+local function text_cursor_move_char(self, rel)
    local new_value = math.min(math.max(0, self.cursor + rel), utf8.len(self.text))
    if self.cursor ~= new_value then
       self.cursor = new_value
+      self.cursor_x = nil
+      update = true
+   end
+end
+
+local function text_cursor_move_word(self, rel)
+   local old_value = self.cursor
+   if rel < 0 and self.cursor > 0 then
+      for _ = rel, -1 do
+         self.cursor = prev_word(self)
+      end
+   elseif rel > 0 and self.cursor < utf8.len(self.text) then
+      for _ = 1, rel do
+         self.cursor = next_word(self)
+      end
+   end
+   if self.cursor ~= old_value then
       self.cursor_x = nil
       update = true
    end
@@ -244,7 +328,15 @@ local function text_on_key(self, key, is_text, is_repeat)
       end
    end
    if key == "Backspace" then
-      self:backspace()
+      self:backspace_char()
+      self:resize()
+      return true
+   elseif key == "Ctrl Backspace" or key == "Alt Backspace" then
+      self:backspace_word()
+      self:resize()
+      return true
+   elseif key == "Delete" then
+      self:delete_char()
       self:resize()
       return true
    elseif key == "Return" or key == "Shift Return" then
@@ -252,11 +344,17 @@ local function text_on_key(self, key, is_text, is_repeat)
          self:eval(self.text, key)
          return true
       end
+   elseif key == "Ctrl Left" then
+      self:cursor_move_word(-1)
+      return true
+   elseif key == "Ctrl Right" then
+      self:cursor_move_word(1)
+      return true
    elseif key == "Left" then
-      self:cursor_move(-1)
+      self:cursor_move_char(-1)
       return true
    elseif key == "Right" then
-      self:cursor_move(1)
+      self:cursor_move_char(1)
       return true
    elseif key == "Home" then
       self:cursor_set(0)
@@ -308,8 +406,11 @@ function ui.text(text, flags)
       add = text_add,
       set = text_set,
       cursor_set = text_cursor_set,
-      cursor_move = text_cursor_move,
-      backspace = text_backspace,
+      cursor_move_char = text_cursor_move_char,
+      cursor_move_word = text_cursor_move_word,
+      backspace_char = text_backspace_char,
+      backspace_word = text_backspace_word,
+      delete_char = text_delete_char,
       calc_cursor_x = text_calc_cursor_x,
       resize = text_resize,
       on_key = flags.editable and text_on_key,
