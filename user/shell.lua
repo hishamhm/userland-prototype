@@ -3,6 +3,7 @@ local shell = {}
 local ui
 local unistd = require("posix.unistd")
 local poll = require("posix.poll")
+local wait = require("posix.sys.wait")
 local lfs = require("lfs")
 
 local syntect = require("syntect")
@@ -243,16 +244,20 @@ function shell.eval(self, input)
          local cd_to = ""
          local cd_done = ""
          if self.data.pwd then
-            cd_to = "cd " .. self.data.pwd .. " && ( "
-            cd_done = " )"
+            cd_to = "cd " .. self.data.pwd .. "; "
+            cd_done = ""
          end
-         os.execute(cd_to .. input .. cd_done)
-         unistd.close(fds.stdout_w)
-         unistd.close(fds.stderr_w)
+         local ok, err, ecode = os.execute(cd_to .. input .. cd_done)
          unistd.close(unistd.STDOUT_FILENO)
          unistd.close(unistd.STDERR_FILENO)
+         if err == "exit" then
+            os.exit(ecode)
+         end
          os.exit(0)
       else
+         pipes[cell].pid = childpid
+         unistd.close(fds.stdout_w)
+         unistd.close(fds.stderr_w)
          if nextcmd then
             add_cell(self)
          end
@@ -260,22 +265,51 @@ function shell.eval(self, input)
    end
 end
 
-local function poll_fd(cell, fd, color)
+local function poll_fd(cell, fd, pid, color)
    local data = poll.rpoll(fd, 0)
    if data == 1 then
       local output, cont = add_output(cell)
       if output then
-         for line in unistd.read(fd, 1024):gmatch("([^\n]*)\n?") do
+         local data = unistd.read(fd, 1024)
+         if (not data) or #data == 0 then
+            local ok, status, ecode = wait.wait(pid)
+print(ok, status, ecode)
+            if ok then
+               if ecode == 0 then
+                  cell.border = 0x00ff77
+                  cell.focus_border = 0x00ff00
+               else
+                  cell.border = 0xff7777
+                  cell.focus_border = 0xff0000
+               end
+            end
+            pipes[cell] = nil
+            return "eof"
+         end
+         if #output.children == 0 then
+            cell.data.nl = true
+         end
+         for line, nl in data:gmatch("([^\n]*)(\n*)") do
             -- FIXME proper tab expansion
             line = line:gsub("\t", "   ")
             -- FIXME don't merge stdout and stderr lines
-            if cont and #output.children > 0 then
-               output.children[#output.children]:cursor_move(math.huge)
+            if #line > 0 then
+               if cell.data.nl then
+                  output:add_child(ui.text("", { color = color }))
+                  cell.data.nl = false
+               end
+               output.children[#output.children]:cursor_move_char(math.huge)
                output.children[#output.children]:add(line)
-            else
-               output:add_child(ui.text(line, { color = color }))
             end
-            cont = false
+            if #nl > 0 then
+               for _ = 1, #nl do
+                  if cell.data.nl then
+                     output:add_child(ui.text("", { color = color }))
+                  else
+                     cell.data.nl = true
+                  end
+               end
+            end
          end
          output.scroll_v = output.total_h - output.h
       end
@@ -284,8 +318,8 @@ end
 
 function shell.frame()
    for cell, fds in pairs(pipes) do
-      poll_fd(cell, fds.stdout_r, 0xffffff)
-      poll_fd(cell, fds.stderr_r, 0xff7777)
+      poll_fd(cell, fds.stdout_r, fds.pid, 0xffffff)
+      poll_fd(cell, fds.stderr_r, fds.pid, 0xff7777)
    end
 end
 
