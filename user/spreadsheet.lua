@@ -99,7 +99,7 @@ function spreadsheet.eval(self, loop_ctrl, trigger_id)
 
    local cell = ui.above(self, "cell")
    local context = ui.below(cell, "context")
-   if cell.data.mode == "?" then
+   if cell.data.mode == "default" then
       local column = ui.above(self, "column")
       local id = column.data.name .. #column.children
       cell.data.mode = "spreadsheet"

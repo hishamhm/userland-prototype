@@ -489,7 +489,7 @@ end
 
 function formulas.parse(formula)
    local errs = {}
-print(require'inspect'(lex(formula)))
+--print(require'inspect'(lex(formula)))
    local i, ast = parse_expression(lex(formula), 1, errs)
    if next(errs) then
       return nil, errs

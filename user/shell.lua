@@ -28,12 +28,18 @@ function shell.init(ui_)
    ui = ui_
 end
 
-function shell.enable(self)
+function shell.enable(self, text)
    local cell = ui.above(self, "cell")
    self.data.pwd = self.data.pwd or normalize(os.getenv("PWD"))
    cell.data.mode = "shell"
    ui.below(cell, "context"):set(show_dir(self.data.pwd))
-   ui.below(cell, "prompt"):resize()
+   local prompt = ui.below(cell, "prompt")
+   local arg = text:match("^%s*shell%s*(.*)$")
+   prompt:set(arg)
+   prompt:resize()
+   if #arg > 0 then
+      shell.eval(self, arg)
+   end
 end
 
 function shell.on_key(self, key)
@@ -117,8 +123,10 @@ local function output_on_key(self, key, is_text, is_repeat, focus)
       return true
    elseif key == "Return" and not is_repeat then
       local prompt = ui.below(ui.above(self, "cell"), "prompt")
-      prompt:add(focus.text)
-      ui.set_focus(prompt)
+      if focus.text then
+         prompt:add(focus.text)
+         ui.set_focus(prompt)
+      end
    end
 end
 
