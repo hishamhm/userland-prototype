@@ -119,11 +119,6 @@ function ui.init()
    root.h = h
 end
 
-function ui.clear()
-   rdr:clear()
-   update = true
-end
-
 function ui.image(filename, flags)
    local obj = {
       type = "image",
@@ -529,6 +524,8 @@ local function box_resize(self)
    if self.parent and self.parent ~= self and self.parent.resize then
       self.parent:resize()
    end
+
+   update = true
 end
 
 local function box_add_child(self, child)

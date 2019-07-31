@@ -8,6 +8,35 @@ local ui
 
 function spreadsheet.init(ui_)
    ui = ui_
+   return { "=" }
+end
+
+local function calc_cell_name(cell)
+   local column = ui.above(cell, "column")
+   local c = column.data.name
+   local r
+   for i, ch in ipairs(column.children) do
+      if ch == cell then
+         r = i
+         break
+      end
+   end
+   return c .. r, c, r
+end
+
+function spreadsheet.enable(self, _, text)
+   local cell = ui.above(self, "cell")
+   local cell_name, c, r = calc_cell_name(cell)
+   cell.data.mode = "spreadsheet"
+   cell.data.c = c
+   cell.data.r = r
+   cell.data.dependents = cell.data.dependents or {}
+   cells[c .. r] = cell
+   ui.below(cell, "context"):set(cell_name)
+   local prompt = ui.below(cell, "prompt")
+   prompt:set(text)
+   prompt:resize()
+   spreadsheet.eval(self)
 end
 
 local function add_cell(self, direction)
@@ -49,6 +78,9 @@ local function eval_formula(formula, my_id, trigger_id)
    local ast, errs = formulas.parse(formula)
    if errs then
       return "?SYNTAX ERROR"
+   end
+   if not ast then
+      return nil
    end
 
    local depends = {}
@@ -98,31 +130,22 @@ function spreadsheet.eval(self, loop_ctrl, trigger_id)
    loop_ctrl[self] = true
 
    local cell = ui.above(self, "cell")
-   local context = ui.below(cell, "context")
-   if cell.data.mode == "default" then
-      local column = ui.above(self, "column")
-      local id = column.data.name .. #column.children
-      cell.data.mode = "spreadsheet"
-      local c = column.data.name
-      local r = #column.children
-      cell.data.c = c
-      cell.data.r = r
-      cell.data.dependents = cell.data.dependents or {}
-      context:set(id)
-      cells[c .. r] = cell
-      self:resize()
-   end
    local my_id = cell.data.c .. cell.data.r
    local prompt = ui.below(self, "prompt")
    local formula = prompt.text:match("^%s*=%s*(.*)$")
    if formula then
-      local output = add_output(cell)
-      local result = tostring(eval_formula(formula, my_id, trigger_id))
-      if #output.children == 0 then
-         output:add_child(ui.text(result))
-      else
-         output.children[1]:set(result)
+      local result = eval_formula(formula, my_id, trigger_id)
+      if result then
+         result = tostring(result)
+         local output = add_output(cell)
+         if #output.children == 0 then
+            output:add_child(ui.text(result))
+         else
+            output.children[1]:set(result)
+         end
       end
+   else
+      cell:remove_n_children_at(1, 2)
    end
    if cell.data.dependents then
       for dep_id, _ in pairs(cell.data.dependents) do

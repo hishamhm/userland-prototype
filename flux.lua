@@ -1,5 +1,9 @@
 local flux = {}
 
+local lexer = require("flux.lexer")
+
+flux.tokenize = lexer.tokenize
+
 local init_data
 
 function flux.init(init_data_)
@@ -16,14 +20,18 @@ function flux.load_modules(dirname, basename)
       if name then
          local pok, mod = pcall(require, basename .. "." .. name)
          if pok and mod then
-            mod.init(init_data)
+            local aliases = mod.init(init_data)
             modules[name] = mod
+            if aliases then
+               for _, alias in ipairs(aliases) do
+                  modules[alias] = mod
+               end
+            end
          end
       end
    end
 
    return modules
 end
-
 
 return flux

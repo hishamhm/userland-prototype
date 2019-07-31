@@ -51,14 +51,15 @@ end
 local function prompt_eval(self, text, key)
    local cell = ui.above(self, "cell")
    local mode = cell.data.mode
+   local tokens = flux.tokenize(text)
+   local arg = tokens[1]
    if mode == "default" then
-      local arg = text:match("^%s*([^%s]*)")
       if modules[arg] and modules[arg].enable then
-         return modules[arg].enable(self, text, key)
+         return modules[arg].enable(self, tokens, text, key)
       end
    end
    if modules[mode] and modules[mode].eval then
-      return modules[mode].eval(self, text, key)
+      return modules[mode].eval(self, tokens, text, key)
    end
 end
 
@@ -73,18 +74,9 @@ local function prompt_on_key(self, key, is_text, is_repeat)
       self:resize()
       return true
    end
---   if self.text == "" and not is_repeat then
---      if mode == "default" then
---         if key == "$" or key == "Ctrl Return" then
---            shell.enable(self)
---            return true
---         end
---      end
---   elseif self.text ~= "" then
-      if modules[mode] and modules[mode].on_key then
-         return modules[mode].on_key(self, key)
-      end
---   end
+   if modules[mode] and modules[mode].on_key then
+      return modules[mode].on_key(self, key)
+   end
 end
 
 local function add_cell(column, cell_data, text, direction, prompt_data)

@@ -5,6 +5,7 @@ local unistd = require("posix.unistd")
 local poll = require("posix.poll")
 local wait = require("posix.sys.wait")
 local lfs = require("lfs")
+local lexer = require("flux.lexer")
 
 local syntect = require("syntect")
 
@@ -27,20 +28,17 @@ end
 
 function shell.init(ui_)
    ui = ui_
+   return { "$" }
 end
 
-function shell.enable(self, text)
+function shell.enable(self)
    local cell = ui.above(self, "cell")
    self.data.pwd = self.data.pwd or normalize(os.getenv("PWD"))
    cell.data.mode = "shell"
    ui.below(cell, "context"):set(show_dir(self.data.pwd))
    local prompt = ui.below(cell, "prompt")
-   local arg = text:match("^%s*shell%s*(.*)$")
-   prompt:set(arg)
+   prompt:set("")
    prompt:resize()
-   if #arg > 0 then
-      shell.eval(self, arg)
-   end
 end
 
 function shell.on_key(self, key)
@@ -161,7 +159,7 @@ local function reset_output(cell)
    return output
 end
 
-function shell.eval(self, input)
+function shell.eval(self, tokens, input)
    local cell = ui.above(self, "cell")
    local context = ui.below(cell, "context")
    local prompt = ui.below(cell, "prompt")
@@ -170,7 +168,8 @@ function shell.eval(self, input)
    self.data = self.data or {}
 
    local nextcmd = true
-   local cmd, arg = input:match("^%s*([^%s]+)%s*(.*)%s*$")
+   local cmd = tokens[1]
+   local arg = input:match("^%s*[^%s]+%s+(.-)%s*$")
 
    if cmd == "cat" then
       if arg == "" then
@@ -230,6 +229,9 @@ function shell.eval(self, input)
       output:remove_n_children_at()
    end
    if #input > 0 then
+      cell.border = 0x777733
+      cell.focus_border = 0xffff33
+
       local fds = {}
       fds.stdout_r, fds.stdout_w = unistd.pipe()
       fds.stderr_r, fds.stderr_w = unistd.pipe()
@@ -276,15 +278,21 @@ local function poll_fd(cell, fd, pid, color)
 print(ok, status, ecode)
             if ok then
                if ecode == 0 then
-                  cell.border = 0x00ff77
-                  cell.focus_border = 0x00ff00
+                  cell.border = 0x00cccc
+                  cell.focus_border = 0x00ffff
+                  cell:resize()
                else
-                  cell.border = 0xff7777
-                  cell.focus_border = 0xff0000
+                  cell.border = 0xcc3333
+                  cell.focus_border = 0xff3333
+                  cell:resize()
                end
             end
             pipes[cell] = nil
             return "eof"
+         else
+            cell.border = 0xcccc33
+            cell.focus_border = 0xffff33
+            cell:resize()
          end
          if #output.children == 0 then
             cell.data.nl = true

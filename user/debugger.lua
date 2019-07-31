@@ -57,7 +57,7 @@ end
 function debugger.eval(self, arg)
    local cell = ui.above(self, "cell")
    local name, root
-   if arg and #arg > 0 and package.loaded[arg] then
+   if arg and package.loaded[arg] then
       name = arg
       root = package.loaded[arg]
    else
@@ -78,12 +78,12 @@ function debugger.eval(self, arg)
    }, make_tree(root)))
 end
 
-function debugger.enable(self)
+function debugger.enable(self, tokens)
    local cell = ui.above(self, "cell")
    cell.data.mode = "debugger"
    ui.below(cell, "context"):set("debugger")
    local column = ui.above(self, "column")
-   debugger.eval(self, self.text:match("debugger%s*([^%s]+)"))
+   debugger.eval(self, tokens[2])
    column.data.add_cell(column, { mode = "default" }, "?")
 end
 
