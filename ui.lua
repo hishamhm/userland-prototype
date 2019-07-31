@@ -58,6 +58,10 @@ function ui.set_focus(obj)
    update = true
 end
 
+function ui.get_focus()
+   return focus
+end
+
 local function SDL_WINDOWPOS_CENTERED_DISPLAY(n)
    return 0x2FFF0000 + n
 end
@@ -339,11 +343,6 @@ local function text_on_key(self, key, is_text, is_repeat)
       self:delete_char()
       self:resize()
       return true
-   elseif key == "Return" or key == "Shift Return" then
-      if self.eval and not is_repeat and self.text ~= "" then
-         self:eval(self.text, key)
-         return true
-      end
    elseif key == "Ctrl Left" then
       self:cursor_move_word(-1)
       return true
@@ -396,7 +395,6 @@ function ui.text(text, flags)
       color = flags.color or 0xffffff,
       fill = flags.fill,
       border = flags.border,
-      eval = flags.eval,
       data = flags.data,
       on_key_cb = flags.on_key,
 

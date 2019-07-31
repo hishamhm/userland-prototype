@@ -1,29 +1,13 @@
 #!./lua
 
 local ui = require("ui")
+local flux = require("flux")
 
 ui.init()
 
-local lfs = require("lfs")
+flux.init(ui)
 
-local function load_modules(dirname, basename)
-   local modules = {}
-
-   for f in lfs.dir(dirname) do
-      local name = f:match("^(.*)%.lua$")
-      if name then
-         local pok, mod = pcall(require, basename .. "." .. name)
-         if pok and mod then
-            mod.init(ui)
-            modules[name] = mod
-         end
-      end
-   end
-
-   return modules
-end
-
-local modules = load_modules("user", "user")
+local modules = flux.load_modules("user/", "user")
 
 local columns = ui.in_root(ui.hbox({ name = "columns", spacing = 4, scroll_by = 20 }))
 local add_column
@@ -116,8 +100,15 @@ local function add_cell(column, cell_data, text, direction, prompt_data)
       on_key = function(self, key, is_text, is_repeat)
          local prompt = ui.below(self, "prompt")
          if key == "Return" then
-            ui.set_focus(prompt)
-            return true
+            local focus = ui.get_focus()
+            if focus == prompt then
+               if not is_repeat and prompt.text ~= "" then
+                  return prompt_eval(prompt, prompt.text, key)
+               end
+            else
+               ui.set_focus(prompt)
+               return true
+            end
          elseif is_text or key == "Backspace" or key == "Ctrl Return" or key == "Ctrl Backspace" then
             prompt:on_key(key, is_text, is_repeat)
             ui.set_focus(prompt)
@@ -143,7 +134,6 @@ local function add_cell(column, cell_data, text, direction, prompt_data)
          ui.text("", {
             name = "prompt",
             editable = true,
-            eval = prompt_eval,
             on_key = prompt_on_key,
             data = prompt_data or {},
          }),
