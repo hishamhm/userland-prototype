@@ -67,14 +67,14 @@ end
 local function prompt_eval(self, text, key)
    local cell = ui.above(self, "cell")
    local mode = cell.data.mode
-   if modules[mode] and modules[mode].eval then
-      return modules[mode].eval(self, text, key)
-   end
    if mode == "default" then
       local arg = text:match("^%s*([^%s]*)")
       if modules[arg] and modules[arg].enable then
          return modules[arg].enable(self, text, key)
       end
+   end
+   if modules[mode] and modules[mode].eval then
+      return modules[mode].eval(self, text, key)
    end
 end
 

@@ -47,7 +47,7 @@ end
 
 function ui.set_focus(obj)
    focus = assert(obj)
-   if focus.parent then
+   if focus.parent and focus.parent.scroll_v then
       if focus.y - focus.parent.scroll_v < 0 then
          focus.parent.scroll_v = focus.y
       end
