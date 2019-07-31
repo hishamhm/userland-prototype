@@ -165,6 +165,105 @@ local function reset_output(cell)
    return output
 end
 
+local ecma48sgr_colors = {
+   [0]  = 0xdddddd,
+   [31] = 0x993333,
+   [32] = 0x009933,
+   [33] = 0x999933,
+   [34] = 0x0066ff,
+   [35] = 0x993399,
+   [36] = 0x009999,
+   [37] = 0xdddddd,
+}
+
+local bold_ecma48sgr_colors = {
+   [0]  = 0xffffff,
+   [31] = 0xff7777,
+   [32] = 0x00ff77,
+   [33] = 0xffff77,
+   [34] = 0x3399ff,
+   [35] = 0xff77ff,
+   [36] = 0x00ffff,
+   [37] = 0xffffff,
+}
+
+local function expand_tabs(text)
+   local extra = 0
+   local begin = 0
+   return text:gsub("()([\t\n])", function(at, c)
+      at = at - begin
+      if c == "\t" then
+         at = at + extra
+         local size = 8 - ((at - 1) % 8)
+         extra = extra + size - 1
+         return (" "):rep(size)
+      else
+         begin = begin + at
+         extra = 0
+         return "\n"
+      end
+   end)
+end
+
+local function split_ansi_colors(data)
+   local color = 0 -- FIXME continue last color
+   local bold = false
+   local out = {}
+   local i = 1
+   data = expand_tabs(data:gsub("\r", ""))
+   local extra = 0
+   data = data:gsub("()\t", function(at)
+      at = at + extra
+      local size = 8 - at % 8
+      extra = extra + size - 1
+      return (" "):rep(size)
+   end)
+   while true do
+      local at, cmd, nextat = data:match("()\27%[([0-9;]+)m()", i)
+      local rgb = bold
+                  and bold_ecma48sgr_colors[color]
+                  or  ecma48sgr_colors[color]
+      if not at then
+         table.insert(out, rgb)
+         table.insert(out, data:sub(i))
+         return out
+      end
+      if at > i then
+         table.insert(out, rgb)
+         table.insert(out, data:sub(i, at - 1))
+      end
+      for c in cmd:gmatch("[^;]+") do
+         c = tonumber(c)
+         if c == 0 or c == 22 then
+            bold = false
+         elseif c == 1 then
+            bold = true
+         end
+         if ecma48sgr_colors[c] then
+            color = c
+         end
+         -- TODO background colors
+      end
+      i = nextat
+   end
+end
+
+local function add_styled_lines(output, lines)
+   local regions = {}
+   for _, line in ipairs(lines) do
+      for i = 1, #line, 2 do
+         local style = line[i]
+         for text, nl in line[i+1]:gmatch("([^\n]*)(\n?)") do
+            table.insert(regions, ui.text(text, { color = style, focusable = false }))
+            if nl == "\n" then
+               output:add_child(ui.hbox({ scrollable = false }, regions))
+               regions = {}
+            end
+         end
+      end
+   end
+end
+
 function shell.eval(self, tokens, input)
    local cell = ui.above(self, "cell")
    local context = ui.below(cell, "context")
@@ -194,18 +293,7 @@ function shell.eval(self, tokens, input)
          output:add_child(ui.text(err, { color = 0xff0000 }))
          return
       end
-      local regions = {}
-      for _, line in ipairs(lines) do
-         for i = 1, #line, 2 do
-            local style = line[i]
-            local text, nl = line[i+1]:match("([^\n]*)(\n?)")
-            table.insert(regions, ui.text(text, { color = style, focusable = false }))
-            if nl == "\n" then
-               output:add_child(ui.hbox({ scrollable = false }, regions))
-               regions = {}
-            end
-         end
-      end
+      add_styled_lines(output, lines)
       return
    end
 
@@ -224,7 +312,7 @@ function shell.eval(self, tokens, input)
          self.data.pwd = pwd
          context:set(show_dir(self.data.pwd))
          prompt:set("")
-         input = "ls -1"
+         input = "ls -1 --color"
          nextcmd = false
       else
          return
@@ -301,31 +389,7 @@ local function poll_fd(cell, fd, pid, color)
             if #output.children == 0 then
                cell.data.nl = true
             end
-            for line, nl in data:gmatch("([^\n]*)(\n*)") do
-               -- FIXME proper tab expansion
-               line = line:gsub("\t", "   ")
-               -- TODO handle colors
-               line = line:gsub("\27%[[^m]*m", "")
-               line = line:gsub("\r", "")
-               -- FIXME don't merge stdout and stderr lines
-               if #line > 0 then
-                  if cell.data.nl then
-                     output:add_child(ui.text("", { color = color }))
-                     cell.data.nl = false
-                  end
-                  output.children[#output.children]:cursor_move_char(math.huge)
-                  output.children[#output.children]:add(line)
-               end
-               if #nl > 0 then
-                  for _ = 1, #nl do
-                     if cell.data.nl then
-                        output:add_child(ui.text("", { color = color }))
-                     else
-                        cell.data.nl = true
-                     end
-                  end
-               end
-            end
+            add_styled_lines(output, { split_ansi_colors(data) })
             output.scroll_v = output.total_h - output.h
          end
       end
