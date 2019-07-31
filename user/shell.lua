@@ -1,6 +1,7 @@
 local shell = {}
 
 local ui
+local posix = require("posix")
 local unistd = require("posix.unistd")
 local poll = require("posix.poll")
 local wait = require("posix.sys.wait")
@@ -172,7 +173,7 @@ function shell.eval(self, tokens, input)
    local arg = input:match("^%s*[^%s]+%s+(.-)%s*$")
 
    if cmd == "cat" then
-      if arg == "" then
+      if not arg then
          return
       end
 
@@ -205,7 +206,7 @@ function shell.eval(self, tokens, input)
 
    if cmd == "cd" then
       local pwd = arg
-      if pwd == "" then
+      if not pwd then
          pwd = os.getenv("HOME")
       end
       pwd = pwd:gsub("^~", os.getenv("HOME") .. "/")
@@ -218,7 +219,7 @@ function shell.eval(self, tokens, input)
          self.data.pwd = pwd
          context:set(show_dir(self.data.pwd))
          prompt:set("")
-         input = "ls"
+         input = "ls -1"
          nextcmd = false
       else
          return
@@ -233,8 +234,8 @@ function shell.eval(self, tokens, input)
       cell.focus_border = 0xffff33
 
       local fds = {}
-      fds.stdout_r, fds.stdout_w = unistd.pipe()
-      fds.stderr_r, fds.stderr_w = unistd.pipe()
+      fds.stdout_r, fds.stdout_w = posix.openpty()
+      fds.stderr_r, fds.stderr_w = posix.openpty()
       pipes[cell] = fds
       local childpid = unistd.fork()
       if childpid == 0 then
@@ -268,60 +269,62 @@ function shell.eval(self, tokens, input)
 end
 
 local function poll_fd(cell, fd, pid, color)
-   local data = poll.rpoll(fd, 0)
-   if data == 1 then
-      local output, cont = add_output(cell)
-      if output then
-         local data = unistd.read(fd, 1024)
-         if (not data) or #data == 0 then
-            local ok, status, ecode = wait.wait(pid)
-print(ok, status, ecode)
-            if ok then
-               if ecode == 0 then
-                  cell.border = 0x00cccc
-                  cell.focus_border = 0x00ffff
-                  cell:resize()
-               else
-                  cell.border = 0xcc3333
-                  cell.focus_border = 0xff3333
-                  cell:resize()
+   local n = 0
+   repeat
+      n = n + 1
+      local data = poll.rpoll(fd, 0)
+      if data == 1 then
+         local output, cont = add_output(cell)
+         if output then
+            local data = unistd.read(fd, 4096)
+            if (not data) or #data == 0 then
+               local ok, status, ecode = wait.wait(pid)
+               if ok then
+                  if ecode == 0 then
+                     cell.border = 0x00cccc
+                     cell.focus_border = 0x00ffff
+                     cell:resize()
+                  else
+                     cell.border = 0xcc3333
+                     cell.focus_border = 0xff3333
+                     cell:resize()
+                  end
                end
+               pipes[cell] = nil
+               return "eof"
             end
-            pipes[cell] = nil
-            return "eof"
-         else
-            cell.border = 0xcccc33
-            cell.focus_border = 0xffff33
-            cell:resize()
-         end
-         if #output.children == 0 then
-            cell.data.nl = true
-         end
-         for line, nl in data:gmatch("([^\n]*)(\n*)") do
-            -- FIXME proper tab expansion
-            line = line:gsub("\t", "   ")
-            -- FIXME don't merge stdout and stderr lines
-            if #line > 0 then
-               if cell.data.nl then
-                  output:add_child(ui.text("", { color = color }))
-                  cell.data.nl = false
-               end
-               output.children[#output.children]:cursor_move_char(math.huge)
-               output.children[#output.children]:add(line)
+            if #output.children == 0 then
+               cell.data.nl = true
             end
-            if #nl > 0 then
-               for _ = 1, #nl do
+            for line, nl in data:gmatch("([^\n]*)(\n*)") do
+               -- FIXME proper tab expansion
+               line = line:gsub("\t", "   ")
+               -- TODO handle colors
+               line = line:gsub("\27%[[^m]*m", "")
+               line = line:gsub("\r", "")
+               -- FIXME don't merge stdout and stderr lines
+               if #line > 0 then
                   if cell.data.nl then
                      output:add_child(ui.text("", { color = color }))
-                  else
-                     cell.data.nl = true
+                     cell.data.nl = false
+                  end
+                  output.children[#output.children]:cursor_move_char(math.huge)
+                  output.children[#output.children]:add(line)
+               end
+               if #nl > 0 then
+                  for _ = 1, #nl do
+                     if cell.data.nl then
+                        output:add_child(ui.text("", { color = color }))
+                     else
+                        cell.data.nl = true
+                     end
                   end
                end
             end
+            output.scroll_v = output.total_h - output.h
          end
-         output.scroll_v = output.total_h - output.h
       end
-   end
+   until data == 0 or n == 100
 end
 
 function shell.frame()
