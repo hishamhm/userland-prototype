@@ -78,7 +78,7 @@ function debugger.eval(self, arg)
    }, make_tree(root)))
 end
 
-function debugger.enable(self, tokens)
+function debugger.enable(self, _, tokens)
    local cell = ui.above(self, "cell")
    cell.data.mode = "debugger"
    ui.below(cell, "context"):set("debugger")

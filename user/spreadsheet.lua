@@ -24,7 +24,7 @@ local function calc_cell_name(cell)
    return c .. r, c, r
 end
 
-function spreadsheet.enable(self, _, text)
+function spreadsheet.enable(self, _, _, text)
    local cell = ui.above(self, "cell")
    local cell_name, c, r = calc_cell_name(cell)
    cell.data.mode = "spreadsheet"
@@ -34,7 +34,9 @@ function spreadsheet.enable(self, _, text)
    cells[c .. r] = cell
    ui.below(cell, "context"):set(cell_name)
    local prompt = ui.below(cell, "prompt")
-   prompt:set(text)
+   if text then
+      prompt:set(text)
+   end
    prompt:resize()
    spreadsheet.eval(self)
 end

@@ -12,11 +12,19 @@ local modules = flux.load_modules("user/", "user")
 local columns = ui.in_root(ui.hbox({ name = "columns", spacing = 4, scroll_by = 20 }))
 local add_column
 
+local function enable_mode(cell, mode, prev, tokens, text, key)
+   if modules[mode] and modules[mode].enable then
+      local prompt = ui.below(cell, "prompt")
+      return modules[mode].enable(prompt, prev, tokens, text, key)
+   end
+end
+
 local function down(self)
    local cell = ui.above(self, "cell")
    if not cell then
       return
    end
+   local mode = cell.data.mode
    local column = ui.above(cell, "column")
    local next = ui.next_sibling(cell)
    if not next then
@@ -25,6 +33,7 @@ local function down(self)
          return
       end
       next = column.data.add_cell(column, { mode = "default" }, "?")
+      enable_mode(next, mode, cell)
    end
    ui.set_focus(next)
 end
@@ -34,17 +43,23 @@ local function right(self)
    if not cell then
       return
    end
+   local mode = cell.data.mode
    local column = ui.above(cell, "column")
    local nextcol = ui.next_sibling(column)
+   local next
    if nextcol then
-      ui.set_focus(nextcol.children[1]) -- FIXME cell visually to the right
+      next = nextcol.children[1] -- FIXME cell visually to the right
    else
       local prompt = ui.below(cell, "prompt")
       if prompt.text == "" then
          return
       end
       nextcol = add_column()
-      ui.set_focus(nextcol.data.add_cell(nextcol, { mode = "default" }, "?"))
+      next = nextcol.data.add_cell(nextcol, { mode = "default" }, "?")
+      enable_mode(next, mode, cell)
+   end
+   if next then
+      ui.set_focus(next)
    end
 end
 
@@ -54,9 +69,7 @@ local function prompt_eval(self, text, key)
    local tokens = flux.tokenize(text)
    local arg = tokens[1]
    if mode == "default" then
-      if modules[arg] and modules[arg].enable then
-         return modules[arg].enable(self, tokens, text, key)
-      end
+      enable_mode(cell, arg, nil, tokens, text, key)
    end
    if modules[mode] and modules[mode].eval then
       return modules[mode].eval(self, tokens, text, key)

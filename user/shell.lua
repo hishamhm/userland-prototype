@@ -32,9 +32,14 @@ function shell.init(ui_)
    return { "$" }
 end
 
-function shell.enable(self)
+function shell.enable(self, prevcell)
    local cell = ui.above(self, "cell")
-   self.data.pwd = self.data.pwd or normalize(os.getenv("PWD"))
+   local prevpwd
+   if prevcell then
+      local prevprompt = ui.below(prevcell, "prompt")
+      prevpwd = prevprompt.data.pwd
+   end
+   self.data.pwd = self.data.pwd or prevpwd or normalize(os.getenv("PWD"))
    cell.data.mode = "shell"
    ui.below(cell, "context"):set(show_dir(self.data.pwd))
    local prompt = ui.below(cell, "prompt")
