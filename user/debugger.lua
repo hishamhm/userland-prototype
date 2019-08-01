@@ -54,8 +54,10 @@ local function make_tree(tv, tk, out, upvs, seen)
    return out
 end
 
-function debugger.eval(self, arg)
-   local cell = ui.above(self, "cell")
+function debugger.eval(cell)
+   local prompt = ui.below(cell, "prompt")
+   local _, arg = prompt.text:match("^%s*([^%s]+)%s*(.-)%s*$")
+
    local name, root
    if arg and package.loaded[arg] then
       name = arg
@@ -64,7 +66,9 @@ function debugger.eval(self, arg)
       name = "_G"
       root = _G
    end
-   ui.below(cell, "prompt"):set(name)
+
+   prompt:set(name)
+
    cell:remove_n_children_at(1, 2)
    cell:add_child(ui.tree({
       name = "tree",
@@ -78,13 +82,11 @@ function debugger.eval(self, arg)
    }, make_tree(root)))
 end
 
-function debugger.enable(self, _, tokens)
-   local cell = ui.above(self, "cell")
-   cell.data.mode = "debugger"
+function debugger.enable(cell)
    ui.below(cell, "context"):set("debugger")
-   local column = ui.above(self, "column")
-   debugger.eval(self, tokens[2])
-   column.data.add_cell(column, { mode = "default" }, "?")
+   local column = ui.above(cell, "column")
+   column.data.add_cell(column)
+   return true
 end
 
 return debugger

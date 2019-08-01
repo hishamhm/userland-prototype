@@ -2,7 +2,7 @@ local spreadsheet = {}
 
 local formulas = require("user.spreadsheet.formulas")
 
-local cells = setmetatable({}, { __mode = "k" })
+local flux = require("flux")
 
 local ui
 
@@ -24,24 +24,16 @@ local function calc_cell_name(cell)
    return c .. r, c, r
 end
 
-function spreadsheet.enable(self, _, _, text)
-   local cell = ui.above(self, "cell")
+function spreadsheet.enable(cell)
    local cell_name, c, r = calc_cell_name(cell)
-   cell.data.mode = "spreadsheet"
    cell.data.c = c
    cell.data.r = r
-   cell.data.dependents = cell.data.dependents or {}
-   cells[c .. r] = cell
+   flux.register(cell_name, cell)
    ui.below(cell, "context"):set(cell_name)
-   local prompt = ui.below(cell, "prompt")
-   if text then
-      prompt:set(text)
-   end
-   prompt:resize()
-   spreadsheet.eval(self)
+   return true
 end
 
-local function add_cell(self, direction)
+local function new_cell(self, direction)
    local column = ui.above(self, "column")
    local r, c
    if direction == "down" then
@@ -52,7 +44,7 @@ local function add_cell(self, direction)
       r = 1
    end
    local id = c .. r
-   cells[c .. r] = column.data.add_cell(column, { mode = "spreadsheet", r = r, c = c }, id, direction)
+   flux.set_mode(flux.register(id, column.data.add_cell(column, direction)), "spreadsheet")
 end
 
 local function add_output(cell)
@@ -76,7 +68,8 @@ local function add_output(cell)
    return output
 end
 
-local function eval_formula(formula, my_id, trigger_id)
+local function eval_formula(formula, cell, trigger_object)
+   local my_id = cell.data.c .. cell.data.r
    local ast, errs = formulas.parse(formula)
    if errs then
       return "?SYNTAX ERROR"
@@ -92,14 +85,14 @@ local function eval_formula(formula, my_id, trigger_id)
       if id == my_id then
          return 0 -- LOOP!
       end
-      local cell = cells[id]
-      if cell then
-         depends[id] = true
-         local output = ui.below(cell, "output")
+      local c = flux.get(id)
+      if c then
+         depends[c] = true
+         local output = ui.below(c, "output")
          if output and output.children[1] then
             return output.children[1].text
          end
-         local prompt = ui.below(cell, "prompt")
+         local prompt = ui.below(c, "prompt")
          if prompt then
             return prompt.text
          end
@@ -110,33 +103,23 @@ local function eval_formula(formula, my_id, trigger_id)
    print(require"inspect"(ast))
    local result = formulas.eval(ast, cell_value)
 
-   if trigger_id and not depends[trigger_id] then
+   if trigger_object and not depends[trigger_object] then
       -- this triggering was unnecessary; unlink cells:
-      cells[trigger_id].data.dependents[my_id] = nil
+      flux.disconnect(trigger_object, cell)
    end
 
    for k, _ in pairs(depends) do
-      local cell = cells[k]
-      cell.data.dependents = cell.data.dependents or {}
-      cell.data.dependents[my_id] = true
+      flux.connect(k, cell)
    end
 
    return result
 end
 
-function spreadsheet.eval(self, loop_ctrl, trigger_id)
-   loop_ctrl = loop_ctrl or {}
-   if loop_ctrl[self] then
-      return
-   end
-   loop_ctrl[self] = true
-
-   local cell = ui.above(self, "cell")
-   local my_id = cell.data.c .. cell.data.r
-   local prompt = ui.below(self, "prompt")
+function spreadsheet.eval(cell, trigger_object)
+   local prompt = ui.below(cell, "prompt")
    local formula = prompt.text:match("^%s*=%s*(.*)$")
    if formula then
-      local result = eval_formula(formula, my_id, trigger_id)
+      local result = eval_formula(formula, cell, trigger_object)
       if result then
          result = tostring(result)
          local output = add_output(cell)
@@ -149,37 +132,31 @@ function spreadsheet.eval(self, loop_ctrl, trigger_id)
    else
       cell:remove_n_children_at(1, 2)
    end
-   if cell.data.dependents then
-      for dep_id, _ in pairs(cell.data.dependents) do
-         local dep_cell = cells[dep_id]
-         spreadsheet.eval(dep_cell, loop_ctrl, my_id)
-      end
-   end
 end
 
-function spreadsheet.on_key(self, text)
-   local cell = ui.above(self, "cell")
+function spreadsheet.on_key(cell, text)
+   local prompt = ui.below(cell, "prompt")
    if text == "Down" or text == "Return" then
-      spreadsheet.eval(self)
+      flux.eval(cell)
       local next = ui.next_sibling(cell)
       if next then
          ui.set_focus(ui.below(next, "prompt"))
       else
-         if self.text ~= "" then
-            add_cell(self, "down")
+         if prompt.text ~= "" then
+            new_cell(cell, "down")
          end
       end
       return true
    elseif text == "Tab" or text == "Shift Return" then
-      spreadsheet.eval(self)
-      local column = ui.above(self, "column")
+      flux.eval(cell)
+      local column = ui.above(cell, "column")
       local nextcol = ui.next_sibling(column)
       if nextcol then
          local n = math.min(#nextcol.children, cell.data.r)
          ui.set_focus(nextcol.children[n])
       else
-         if self.text ~= "" then
-            add_cell(self, "right")
+         if prompt.text ~= "" then
+            new_cell(cell, "right")
          end
       end
       return true

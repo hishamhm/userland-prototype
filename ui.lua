@@ -301,7 +301,7 @@ end
 local function text_calc_cursor_x(self)
    local s = utf8_sub(self.text, 1, self.cursor)
    local w = font_size(s)
-   self.cursor_x = self.x + w + 1
+   self.cursor_x = w + 1
 end
 
 local function crop(obj)
@@ -576,6 +576,18 @@ local function box_remove_n_children_at(self, n, pos)
    update = true
 end
 
+local function box_replace_child(self, old, new)
+   for i, c in ipairs(self.children) do
+      if c == old then
+         detach(old)
+         self.children[i] = new
+         self:resize()
+         update = true
+         return
+      end
+   end
+end
+
 local function box_on_wheel(self, x, y)
    if y == -1 and self.scroll_v < self.total_h - self.h then
       self.scroll_v = self.scroll_v + self.scroll_by
@@ -662,6 +674,7 @@ local function ui_box(flags, children, type)
       add_child = box_add_child,
       add_children_below = box_add_children_below,
       remove_n_children_at = box_remove_n_children_at,
+      replace_child = box_replace_child,
    }
 
    for _, child in ipairs(obj.children) do
@@ -831,7 +844,7 @@ draw = function(obj, off, clip)
             obj:calc_cursor_x()
          end
          clip.w = clip.w + 10
-         line = { x1 = obj.cursor_x + off.x, y1 = obj.y + 1 + off.y, x2 = obj.cursor_x + off.x, y2 = obj.y + obj.h - 2 + off.y }
+         line = { x1 = obj.x + obj.cursor_x + off.x, y1 = obj.y + 1 + off.y, x2 = obj.x + obj.cursor_x + off.x, y2 = obj.y + obj.h - 2 + off.y }
          if focus == obj then
             rdr:setClipRect(root)
             glow({ x = line.x1, y = line.y1, w = 1, h = (line.y2 - line.y1 + 1) }, 0x009999)

@@ -1,12 +1,15 @@
 local shell = {}
 
 local ui
-local posix = require("posix")
-local unistd = require("posix.unistd")
+
 local poll = require("posix.poll")
 local wait = require("posix.sys.wait")
+local posix = require("posix")
+local unistd = require("posix.unistd")
+
 local lfs = require("lfs")
-local lexer = require("flux.lexer")
+
+local flux = require("flux")
 
 local syntect = require("syntect")
 
@@ -22,9 +25,10 @@ local function show_dir(dir)
    return dir:gsub("^" .. os.getenv("HOME"), "~")
 end
 
-local function add_cell(self)
-   local column = ui.above(self, "column")
-   column.data.add_cell(column, { mode = "shell" }, show_dir(self.data.pwd), nil, { pwd = self.data.pwd })
+local function new_cell(cell, direction)
+   assert(cell.data.pwd)
+   local column = ui.above(cell, "column")
+   return flux.set_mode(column.data.add_cell(column, direction), "shell", cell)
 end
 
 function shell.init(ui_)
@@ -32,27 +36,25 @@ function shell.init(ui_)
    return { "$" }
 end
 
-function shell.enable(self, prevcell)
-   local cell = ui.above(self, "cell")
+function shell.enable(cell, prevcell)
    local prevpwd
    if prevcell then
-      local prevprompt = ui.below(prevcell, "prompt")
-      prevpwd = prevprompt.data.pwd
+      prevpwd = prevcell.data.pwd
    end
-   self.data.pwd = self.data.pwd or prevpwd or normalize(os.getenv("PWD"))
-   cell.data.mode = "shell"
-   ui.below(cell, "context"):set(show_dir(self.data.pwd))
+   cell.data.pwd = cell.data.pwd or prevpwd or normalize(os.getenv("PWD"))
+   ui.below(cell, "context"):set(show_dir(cell.data.pwd))
    local prompt = ui.below(cell, "prompt")
    prompt:set("")
    prompt:resize()
+   return true
 end
 
-function shell.on_key(self, key)
-   local column = ui.above(self, "column")
-   local cell = ui.above(self, "cell")
+function shell.on_key(cell, key)
+   local column = ui.above(cell, "column")
+   local prompt = ui.below(cell, "prompt")
    if key == "Ctrl L" then
       column.children = {}
-      column.data.add_cell(column, { mode = "shell" }, self.data.pwd, nil, { pwd = self.data.pwd })
+      new_cell(cell)
       return true
    elseif key == "Ctrl M" then
       local output = ui.below(cell, "output")
@@ -69,29 +71,29 @@ function shell.on_key(self, key)
       end
       return true
    elseif key == "Ctrl Tab" then
-      column.data.add_cell(column, { mode = "shell" }, self.data.pwd, "right", { pwd = self.data.pwd })
+      new_cell(cell, "right")
       return true
    elseif key == "Ctrl A" then
-      self:cursor_set(0)
+      prompt:cursor_set(0)
       return true
    elseif key == "Ctrl E" then
-      self:cursor_set(math.huge)
+      prompt:cursor_set(math.huge)
       return true
    elseif key == "Up" then
-      local prev, cur = ui.previous_sibling(cell)
-      if prev then
-         local prevprompt = ui.below(prev, "prompt")
-         if self.text == "" and cur == #column.children and prevprompt.data.pwd == self.data.pwd then
+      local prevcell, cur = ui.previous_sibling(cell)
+      if prevcell then
+         if prompt.text == "" and cur == #column.children and prevcell.data.pwd == cell.data.pwd then
             column:remove_n_children_at(1, cur)
          end
-         ui.set_focus(prev)
+         ui.set_focus(prevcell)
       end
       return true
    elseif key == "Down" then
-      if #cell.children == 2 then
-         ui.set_focus(cell.children[2].children[1])
-         cell.children[2].scroll_v = 0
-         cell.children[2].scroll_h = 0
+      local output = ui.below(cell, "output")
+      if ui.get_focus() == prompt and output then
+         ui.set_focus(output)
+         output.scroll_v = 0
+         output.scroll_h = 0
          cell:resize()
          return true
       end
@@ -99,8 +101,8 @@ function shell.on_key(self, key)
       if next then
          ui.set_focus(ui.below(next, "prompt"))
       else
-         if self.text ~= "" then
-            add_cell(self)
+         if prompt.text ~= "" then
+            new_cell(cell)
          end
       end
       return true
@@ -205,7 +207,7 @@ local function expand_tabs(text)
    end)
 end
 
-local function split_ansi_colors(data)
+local function split_ansi_colors(data, default_color)
    local color = 0 -- FIXME continue last color
    local bold = false
    local out = {}
@@ -220,9 +222,11 @@ local function split_ansi_colors(data)
    end)
    while true do
       local at, cmd, nextat = data:match("()\27%[([0-9;]+)m()", i)
-      local rgb = bold
-                  and bold_ecma48sgr_colors[color]
-                  or  ecma48sgr_colors[color]
+      local rgb = (color == 0 and not bold)
+                  and default_color
+                  or (bold
+                     and bold_ecma48sgr_colors[color]
+                     or  ecma48sgr_colors[color])
       if not at then
          table.insert(out, rgb)
          table.insert(out, data:sub(i))
@@ -254,6 +258,7 @@ local function add_styled_lines(output, lines)
       for i = 1, #line, 2 do
          local style = line[i]
          for text, nl in line[i+1]:gmatch("([^\n]*)(\n?)") do
+            text = expand_tabs(text) -- FIXME this won't expand correctly, it's too late
             table.insert(regions, ui.text(text, { color = style, focusable = false }))
             if nl == "\n" then
                output:add_child(ui.hbox({ scrollable = false }, regions))
@@ -264,17 +269,70 @@ local function add_styled_lines(output, lines)
    end
 end
 
-function shell.eval(self, tokens, input)
-   local cell = ui.above(self, "cell")
+local function pipeline_on_key(self, key)
+--   if key == "Up" then
+--      local prev, cur = ui.previous_sibling(self)
+--      if prev then
+--         ui.set_focus(prev)
+--      end
+--      return true
+--   elseif key == "Down" then
+--      local next = ui.next_sibling(self)
+--      if next then
+--         ui.set_focus(next)
+--      else
+--         new_cell(ui.below(self, "cell"))
+--      end
+--      return true
+   if key == "Return" then
+      ui.set_focus(self.children[1])
+   end
+end
+
+local function expand_pipeline(cell, pipeline)
+   local column = ui.above(cell, "column")
+   local cells = {}
+   for i, part in ipairs(pipeline) do
+      cells[i] = new_cell(cell)
+      column.children[#column.children] = nil
+      local cellprompt = ui.below(cells[i], "prompt")
+      cellprompt:set(part)
+      shell.eval(cells[i])
+      if i > 1 then
+         flux.connect(cells[i - 1], cells[i])
+      end
+   end
+   local group = ui.hbox({
+      name = "pipeline",
+      scrollable = false,
+      margin = 5,
+      spacing = 10,
+      border = 0x789abc,
+      on_key = pipeline_on_key,
+   }, cells)
+   column:replace_child(cell, group)
+end
+
+function shell.eval(cell)
    local context = ui.below(cell, "context")
    local prompt = ui.below(cell, "prompt")
    local output = ui.below(cell, "output")
 
-   self.data = self.data or {}
+   local input = prompt.text
+
+   cell.data = cell.data or {}
 
    local nextcmd = true
-   local cmd = tokens[1]
-   local arg = input:match("^%s*[^%s]+%s+(.-)%s*$")
+   local cmd, arg = input:match("^%s*([^%s]+)%s*(.-)%s*$")
+
+   local pipeline = {}
+   for part in input:gmatch("%s*[^|]*") do
+      table.insert(pipeline, part)
+   end
+
+   if #pipeline > 1 then
+      return expand_pipeline(cell, pipeline)
+   end
 
    if cmd == "cat" then
       if not arg then
@@ -282,11 +340,11 @@ function shell.eval(self, tokens, input)
       end
 
       if not arg:match("^/") then
-         arg = self.data.pwd:gsub("^~", os.getenv("HOME") .. "/") .. "/" .. arg
+         arg = cell.data.pwd:gsub("^~", os.getenv("HOME") .. "/") .. "/" .. arg
       end
 
       local output = reset_output(cell)
-      add_cell(self)
+      new_cell(cell)
 
       local lines, err = syntect.highlight_file(arg)
       if not lines then
@@ -304,13 +362,13 @@ function shell.eval(self, tokens, input)
       end
       pwd = pwd:gsub("^~", os.getenv("HOME") .. "/")
       if not pwd:match("^/") then
-         pwd = self.data.pwd .. "/" .. pwd
+         pwd = cell.data.pwd .. "/" .. pwd
       end
       pwd = normalize(pwd)
       local attrs = lfs.attributes(pwd)
       if attrs and attrs.mode == "directory" then
-         self.data.pwd = pwd
-         context:set(show_dir(self.data.pwd))
+         cell.data.pwd = pwd
+         context:set(show_dir(cell.data.pwd))
          prompt:set("")
          input = "ls -1 --color"
          nextcmd = false
@@ -322,6 +380,7 @@ function shell.eval(self, tokens, input)
    if output then
       output:remove_n_children_at()
    end
+
    if #input > 0 then
       cell.border = 0x777733
       cell.focus_border = 0xffff33
@@ -339,8 +398,8 @@ function shell.eval(self, tokens, input)
          unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
          local cd_to = ""
          local cd_done = ""
-         if self.data.pwd then
-            cd_to = "cd " .. self.data.pwd .. "; "
+         if cell.data.pwd then
+            cd_to = "cd " .. cell.data.pwd .. "; "
             cd_done = ""
          end
          local ok, err, ecode = os.execute(cd_to .. input .. cd_done)
@@ -355,7 +414,7 @@ function shell.eval(self, tokens, input)
          unistd.close(fds.stdout_w)
          unistd.close(fds.stderr_w)
          if nextcmd then
-            add_cell(self)
+            new_cell(cell)
          end
       end
    end
@@ -389,7 +448,7 @@ local function poll_fd(cell, fd, pid, color)
             if #output.children == 0 then
                cell.data.nl = true
             end
-            add_styled_lines(output, { split_ansi_colors(data) })
+            add_styled_lines(output, { split_ansi_colors(data, color) })
             output.scroll_v = output.total_h - output.h
          end
       end
