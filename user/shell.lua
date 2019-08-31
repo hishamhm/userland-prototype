@@ -7,6 +7,15 @@ local wait = require("posix.sys.wait")
 local posix = require("posix")
 local unistd = require("posix.unistd")
 
+local gensym
+do
+   local g = 0
+   gensym = function()
+      g = g + 1
+      return "$" .. g
+   end
+end
+
 local lfs = require("lfs")
 
 local flux = require("flux")
@@ -21,8 +30,15 @@ local function normalize(dir)
    return dir
 end
 
-local function show_dir(dir)
-   return dir:gsub("^" .. os.getenv("HOME"), "~")
+local function show_context(cell)
+   local id = cell.data.id
+   if not id then
+      id = gensym()
+      cell.data.id = id
+      flux.register(id, cell)
+   end
+   local dir = cell.data.pwd
+   return id .. " " .. dir:gsub("^" .. os.getenv("HOME"), "~")
 end
 
 local function new_cell(cell, direction)
@@ -42,10 +58,32 @@ function shell.enable(cell, prevcell)
       prevpwd = prevcell.data.pwd
    end
    cell.data.pwd = cell.data.pwd or prevpwd or normalize(os.getenv("PWD"))
-   ui.below(cell, "context"):set(show_dir(cell.data.pwd))
+   ui.below(cell, "context"):set(show_context(cell))
    local prompt = ui.below(cell, "prompt")
    prompt:set("")
    prompt:resize()
+   return true
+end
+
+local function down_cell(cell)
+   local next = ui.next_sibling(cell)
+
+   if not next then
+      local pipeline = ui.above(cell, "pipeline")
+      if pipeline then
+         next = ui.next_sibling(pipeline)
+      end
+   end
+
+   if next then
+      return ui.set_focus(ui.below(next, "prompt"))
+   else
+      local prompt = ui.below(cell, "prompt")
+      if prompt.text ~= "" then
+         ui.set_focus(new_cell(cell))
+      end
+   end
+
    return true
 end
 
@@ -53,7 +91,9 @@ function shell.on_key(cell, key)
    local column = ui.above(cell, "column")
    local prompt = ui.below(cell, "prompt")
    if key == "Ctrl L" then
-      column.children = {}
+      local columns = ui.above(cell, "columns")
+      columns:remove_n_children_at(nil, 2)
+      column:remove_n_children_at()
       new_cell(cell)
       return true
    elseif key == "Ctrl M" then
@@ -97,15 +137,7 @@ function shell.on_key(cell, key)
          cell:resize()
          return true
       end
-      local next = ui.next_sibling(cell)
-      if next then
-         ui.set_focus(ui.below(next, "prompt"))
-      else
-         if prompt.text ~= "" then
-            new_cell(cell)
-         end
-      end
-      return true
+      return down_cell(cell)
    end
 end
 
@@ -146,7 +178,7 @@ local function add_output(cell)
    end
    output = ui.vbox({
       name = "output",
-      min_w = TEXT_W,
+      min_w = 340,
       max_w = TEXT_W * 2,
       max_h = 450,
       spacing = 4,
@@ -164,6 +196,7 @@ end
 local function reset_output(cell)
    local output = add_output(cell)
    output:remove_n_children_at()
+   output.scroll_v = 0
    return output
 end
 
@@ -297,20 +330,63 @@ local function expand_pipeline(cell, pipeline)
       column.children[#column.children] = nil
       local cellprompt = ui.below(cells[i], "prompt")
       cellprompt:set(part)
-      shell.eval(cells[i])
       if i > 1 then
-         flux.connect(cells[i - 1], cells[i])
+         flux.require(cells[i - 1], cells[i])
+         if i < #pipeline then
+            cells[i].data.in_pipe = true
+         end
       end
    end
+
    local group = ui.hbox({
       name = "pipeline",
+      data = {
+         pwd = cell.data.pwd,
+      },
       scrollable = false,
       margin = 5,
       spacing = 10,
       border = 0x789abc,
+      fill   = 0x77345678,
       on_key = pipeline_on_key,
    }, cells)
    column:replace_child(cell, group)
+
+   flux.eval(cells[1])
+
+   down_cell(group)
+end
+
+local function propagate(cell, data)
+   for nextcell in flux.each_requirement(cell) do
+      local nextpipes = pipes[nextcell]
+      if nextpipes then
+         unistd.write(nextpipes.stdin_w, data)
+      end
+   end
+end
+
+local function close_readers(cell)
+   for nextcell in flux.each_requirement(cell) do
+      local nextpipes = pipes[nextcell]
+      if nextpipes and nextpipes.stdin_w then
+         unistd.close(nextpipes.stdin_w)
+      end
+   end
+end
+
+local function make_pipes(cell)
+   local fds = {}
+   fds.stdin_r, fds.stdin_w = unistd.pipe()
+   if cell.data.in_pipe then
+      fds.stdout_r, fds.stdout_w = unistd.pipe()--posix.openpty()
+      fds.stderr_r, fds.stderr_w = unistd.pipe()--posix.openpty()
+   else
+      fds.stdout_r, fds.stdout_w = posix.openpty()
+      fds.stderr_r, fds.stderr_w = posix.openpty()
+   end
+   pipes[cell] = fds
+   return fds
 end
 
 function shell.eval(cell)
@@ -319,19 +395,46 @@ function shell.eval(cell)
    local output = ui.below(cell, "output")
 
    local input = prompt.text
+   if #input:match("^%s*(.-)%s*$") == 0 then
+      return
+   end
+
+   input = input:gsub("$([A-Z0-9$]+)", function(var)
+      local ref = flux.get(var)
+      local refout = ui.below(ref, "output")
+      if not refout then
+         refout = ui.below(ref, "prompt")
+      end
+      if refout and refout.as_text then
+         local val = refout:as_text()
+         if val then
+            flux.depend(ref, cell)
+            return val
+         end
+      end
+      return var
+   end)
 
    cell.data = cell.data or {}
 
-   local nextcmd = true
-   local cmd, arg = input:match("^%s*([^%s]+)%s*(.-)%s*$")
-
    local pipeline = {}
-   for part in input:gmatch("%s*[^|]*") do
+   for part in input:gmatch("%s*([^|]*)") do
       table.insert(pipeline, part)
    end
 
    if #pipeline > 1 then
       return expand_pipeline(cell, pipeline)
+   end
+
+   local nextcmd = true
+   local cmd, arg = input:match("^%s*([^%s]+)%s*(.-)%s*$")
+
+   if cmd == "quiet" then
+      cmd, arg = arg:match("^%s*([^%s]+)%s*(.-)%s*$")
+      cell.data.quiet = true
+      input = cmd .. " " .. arg
+   else
+      cell.data.quiet = false
    end
 
    if cmd == "cat" then
@@ -344,20 +447,70 @@ function shell.eval(cell)
       end
 
       local output = reset_output(cell)
-      new_cell(cell)
+      down_cell(cell)
 
       local lines, err = syntect.highlight_file(arg)
-      if not lines then
+      if lines then
+         add_styled_lines(output, lines)
+      else
          output:add_child(ui.text(err, { color = 0xff0000 }))
+      end
+
+      -- FIXME this reads the file twice
+      local fd = io.open(arg, "r")
+      if fd then
+         local data = fd:read("*a")
+         fd:close()
+
+         propagate(cell, data)
+         close_readers(cell)
+      end
+
+      return
+   end
+
+   if cmd == "show" then
+      if arg == "" then
+         local fds = {}
+         fds.stdout_r, fds.stdin_w = unistd.pipe()
+         pipes[cell] = fds
+
+         cell.data.type = "image"
+         cell.data.buffer = {}
          return
       end
-      add_styled_lines(output, lines)
+
+      if not arg:match("^/") then
+         arg = cell.data.pwd:gsub("^~", os.getenv("HOME") .. "/") .. "/" .. arg
+      end
+
+      local output = reset_output(cell)
+      down_cell(cell)
+
+      local img = ui.image(arg)
+      if img then
+         output:add_child(img)
+      else
+         output:add_child(ui.text("could not load " .. arg, { color = 0xff0000 }))
+      end
+      output:resize()
+
+      -- FIXME this reads the file twice
+      local fd = io.open(arg, "r")
+      if fd then
+         local data = fd:read("*a")
+         fd:close()
+
+         propagate(cell, data)
+         close_readers(cell)
+      end
+
       return
    end
 
    if cmd == "cd" then
       local pwd = arg
-      if not pwd then
+      if pwd == "" then
          pwd = os.getenv("HOME")
       end
       pwd = pwd:gsub("^~", os.getenv("HOME") .. "/")
@@ -368,7 +521,7 @@ function shell.eval(cell)
       local attrs = lfs.attributes(pwd)
       if attrs and attrs.mode == "directory" then
          cell.data.pwd = pwd
-         context:set(show_dir(cell.data.pwd))
+         context:set(show_context(cell))
          prompt:set("")
          input = "ls -1 --color"
          nextcmd = false
@@ -381,78 +534,113 @@ function shell.eval(cell)
       output:remove_n_children_at()
    end
 
-   if #input > 0 then
-      cell.border = 0x777733
-      cell.focus_border = 0xffff33
+   cell.border = 0x777733
+   cell.focus_border = 0xffff33
+   cell.data.type = "text"
 
-      local fds = {}
-      fds.stdout_r, fds.stdout_w = posix.openpty()
-      fds.stderr_r, fds.stderr_w = posix.openpty()
-      pipes[cell] = fds
-      local childpid = unistd.fork()
-      if childpid == 0 then
-         -- child process
-         unistd.close(fds.stdout_r)
-         unistd.close(fds.stderr_r)
-         unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
-         unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
-         local cd_to = ""
-         local cd_done = ""
-         if cell.data.pwd then
-            cd_to = "cd " .. cell.data.pwd .. "; "
-            cd_done = ""
-         end
-         local ok, err, ecode = os.execute(cd_to .. input .. cd_done)
-         unistd.close(unistd.STDOUT_FILENO)
-         unistd.close(unistd.STDERR_FILENO)
-         if err == "exit" then
-            os.exit(ecode)
-         end
-         os.exit(0)
-      else
-         pipes[cell].pid = childpid
-         unistd.close(fds.stdout_w)
-         unistd.close(fds.stderr_w)
-         if nextcmd then
-            new_cell(cell)
-         end
+   local fds = make_pipes(cell)
+   local childpid = unistd.fork()
+   if childpid == 0 then
+      -- child process
+      unistd.close(fds.stdin_w)
+      unistd.close(fds.stdout_r)
+      unistd.close(fds.stderr_r)
+      unistd.dup2(fds.stdin_r, unistd.STDIN_FILENO)
+      unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
+      unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
+      local cd_to = ""
+      local cd_done = ""
+      if cell.data.pwd then
+         cd_to = "cd " .. cell.data.pwd .. "; "
+         cd_done = ""
+      end
+      local ok, err, ecode = os.execute(cd_to .. input .. cd_done)
+      unistd.close(unistd.STDIN_FILENO)
+      unistd.close(unistd.STDOUT_FILENO)
+      unistd.close(unistd.STDERR_FILENO)
+      if err == "exit" then
+         os.exit(ecode)
+      end
+      os.exit(0)
+   else
+      pipes[cell].pid = childpid
+      unistd.close(fds.stdin_r)
+      unistd.close(fds.stdout_w)
+      unistd.close(fds.stderr_w)
+      if nextcmd then
+         down_cell(cell)
       end
    end
 end
 
 local function poll_fd(cell, fd, pid, color)
+   if not fd then
+      return
+   end
    local n = 0
    repeat
       n = n + 1
-      local data = poll.rpoll(fd, 0)
-      if data == 1 then
+      local has_data = poll.rpoll(fd, 0)
+      if has_data == 1 then
          local output, cont = add_output(cell)
          if output then
             local data = unistd.read(fd, 4096)
-            if (not data) or #data == 0 then
-               local ok, status, ecode = wait.wait(pid)
-               if ok then
-                  if ecode == 0 then
-                     cell.border = 0x00cccc
-                     cell.focus_border = 0x00ffff
-                     cell:resize()
-                  else
-                     cell.border = 0xcc3333
-                     cell.focus_border = 0xff3333
-                     cell:resize()
+            if not data or #data == 0 then
+               if pid then
+                  local ok, status, ecode = wait.wait(pid, wait.WNOHANG)
+                  if ok then
+                     if ecode == 0 then
+                        cell.border = 0x00cccc
+                        cell.focus_border = 0x00ffff
+                        cell:resize()
+                     else
+                        cell.border = 0xcc3333
+                        cell.focus_border = 0xff3333
+                        cell:resize()
+                     end
                   end
+               else
+                  if cell.data.type == "image" then
+                     local out = table.concat(cell.data.buffer or {})
+                     os.remove("/tmp/foo.jpg")
+                     local ifd = io.open("/tmp/foo.jpg", "w"):write(out) -- HACK
+                     ifd:close()
+                     local output = add_output(cell)
+                     local img = ui.image("/tmp/foo.jpg")
+                     if img then
+                        output:remove_n_children_at(1, 1)
+                        output:add_child(img)
+                        output.scroll_v = 0
+                        output.scroll_h = 0
+                        output:resize()
+                     end
+                  end
+                  cell.border = 0x00cccc
+                  cell.focus_border = 0x00ffff
+                  cell:resize()
                end
+               close_readers(cell)
                pipes[cell] = nil
                return "eof"
             end
             if #output.children == 0 then
                cell.data.nl = true
             end
-            add_styled_lines(output, { split_ansi_colors(data, color) })
+
+            if cell.data.type == "text" then
+               if not cell.data.quiet then
+                  add_styled_lines(output, { split_ansi_colors(data, color) })
+               end
+               propagate(cell, data)
+            elseif cell.data.type == "image" then
+               cell.data.buffer = cell.data.buffer or {}
+               table.insert(cell.data.buffer, data)
+            end
+
             output.scroll_v = output.total_h - output.h
          end
       end
-   until data == 0 or n == 100
+   until has_data == 0 or n == 16
 end
 
 function shell.frame()

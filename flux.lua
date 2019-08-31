@@ -15,6 +15,8 @@ local modules = {
 local names = setmetatable({}, weak_key)
 local objects = setmetatable({}, weak_value)
 local dependents = setmetatable({}, weak_key)
+local requirements_rev = setmetatable({}, weak_key)
+local requirements = setmetatable({}, weak_key)
 local modes = setmetatable({}, weak_key)
 
 function flux.init(init_data_)
@@ -47,14 +49,61 @@ function flux.load_modules(dirname, basename)
    end
 end
 
-function flux.connect(a, b)
+function flux.depend(a, b)
    dependents[a] = dependents[a] or setmetatable({}, weak_key)
    dependents[a][b] = true
 end
 
-function flux.disconnect(a, b)
+function flux.each_dependent(a)
+   local k
+   if not dependents[a] then
+      return function() end
+   end
+   return function()
+      k = next(dependents[a], k)
+      return k
+   end
+end
+
+function flux.undepend(a, b)
    if dependents[a] then
       dependents[a][b] = nil
+   end
+end
+
+function flux.require(a, b)
+   requirements[a] = requirements[a] or setmetatable({}, weak_key)
+   requirements[a][b] = true
+
+   requirements_rev[b] = requirements_rev[b] or setmetatable({}, weak_key)
+   requirements_rev[b][a] = true
+end
+
+function flux.each_requirement(a)
+   local k
+   if not requirements[a] then
+      return function() end
+   end
+   return function()
+      k = next(requirements[a], k)
+      return k
+   end
+end
+
+function flux.each_requirement_rev(b)
+   local k
+   if not requirements_rev[b] then
+      return function() end
+   end
+   return function()
+      k = next(requirements_rev[b], k)
+      return k
+   end
+end
+
+function flux.unrequire(a, b)
+   if requirements[a] then
+      requirements[a][b] = nil
    end
 end
 
@@ -78,12 +127,18 @@ function flux.eval(object, trigger_object, loop_ctrl)
    end
    loop_ctrl[object] = true
 
+   for req in flux.each_requirement(object) do
+      flux.eval(req, object, loop_ctrl)
+   end
+
    call("eval", object, trigger_object)
 
-   if dependents[object] then
-      for dep, _ in pairs(dependents[object]) do
-         flux.eval(dep, object, loop_ctrl)
-      end
+   for req in flux.each_requirement_rev(object) do
+      flux.eval(req, object, loop_ctrl)
+   end
+
+   for dep in flux.each_dependent(object) do
+      flux.eval(dep, object, loop_ctrl)
    end
 end
 

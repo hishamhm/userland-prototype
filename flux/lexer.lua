@@ -67,7 +67,7 @@ function lexer.lex(input)
          elseif c == "'" then
             state = "singlequote_string"
             begin_token()
-         elseif c:match("[a-zA-Z_]") then
+         elseif c:match("[a-zA-Z_$]") then
             state = "word"
             begin_token()
          elseif c:match("[0-9]") then

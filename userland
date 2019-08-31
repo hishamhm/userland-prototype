@@ -61,11 +61,13 @@ local function prompt_on_key(self, key, is_text, is_repeat)
       ui.below(cell, "prompt"):set("")
       ui.below(cell, "context"):set("?")
       cell:remove_n_children_at(nil, 2)
+      cell.border = 0x00cccc
+      cell.focus_border = 0x00cccc
       self:resize()
       return true
    end
 
-   flux.on_key(cell, key, is_text, is_repeat)
+   return flux.on_key(cell, key, is_text, is_repeat)
 end
 
 local function add_cell(column, direction)
@@ -97,26 +99,27 @@ local function add_cell(column, direction)
                ui.set_focus(prompt)
                return true
             end
-         elseif key == "Up" then
-            local prev, cur = ui.previous_sibling(cell)
-            if prev then
-               if prompt.text == "" and cur == #column.children and (prev.data == nil or prev.data.pwd == cell.data.pwd) then -- HACK
-                  column:remove_n_children_at(1, cur)
-               end
-               ui.set_focus(prev)
-            end
-            return true
-         elseif key == "Down" then
-            local next = ui.next_sibling(cell)
-            if next then
-               ui.set_focus(ui.below(next, "prompt"))
-            else
-               if prompt.text ~= "" then
-                  add_cell(column)
-               end
-            end
-            return true
-
+--         elseif key == "Up" then
+--            local prev, cur = ui.previous_sibling(cell)
+--            if prev then
+--               if prompt.text == "" and cur == #column.children and (prev.data == nil or prev.data.pwd == cell.data.pwd) then -- HACK
+--                  column:remove_n_children_at(1, cur)
+--               end
+--               ui.set_focus(prev)
+--            end
+--            return true
+--         elseif key == "Down" then
+--            local next = ui.next_sibling(cell)
+--            if next then
+--               ui.set_focus(ui.below(next, "prompt"))
+--            else
+--               if prompt.text ~= "" then
+--print("adding generic cell")
+--                  add_cell(column)
+--               end
+--            end
+--            return true
+--
          elseif is_text or key == "Backspace" or key == "Ctrl Return" or key == "Ctrl Backspace" then
             prompt:on_key(key, is_text, is_repeat)
             ui.set_focus(prompt)
@@ -167,7 +170,8 @@ add_column = function()
 end
 
 local firstcol = add_column()
-firstcol.data.add_cell(firstcol)
+local firstcell = firstcol.data.add_cell(firstcol)
+--flux.set_mode(firstcell, "shell")
 
 local fullscreen = false
 

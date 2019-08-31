@@ -77,6 +77,14 @@ function ui.init()
       error(err)
    end
 
+   ret, err = Image.init({
+      Image.flags.JPG,
+      Image.flags.PNG,
+   })
+   if not ret then
+      error(err)
+   end
+
    font = TTF.open("DejaVuSansMono.ttf", 14)
 
    local _, mx, my = SDL.getMouseState()
@@ -92,7 +100,7 @@ function ui.init()
          break
       end
    end
-   curr_display = 1 -- FIXME
+   curr_display = 0 -- FIXME
 
    win, err = SDL.createWindow({
       title = "Userland",
@@ -120,6 +128,7 @@ function ui.init()
 end
 
 function ui.image(filename, flags)
+   flags = flags or {}
    local obj = {
       type = "image",
       x = flags.x,
@@ -131,6 +140,9 @@ function ui.image(filename, flags)
    if not img then
       return nil, err
    end
+   local w, h = img:getSize()
+   obj.w = obj.w or w
+   obj.h = obj.h or h
 
    obj.tex, err = rdr:createTextureFromSurface(img)
    if not obj.tex then
@@ -374,6 +386,10 @@ local function text_resize(self)
    end
 end
 
+local function text_as_text(self)
+   return self.text
+end
+
 function ui.text(text, flags)
    flags = flags or E
    local obj = {
@@ -408,6 +424,7 @@ function ui.text(text, flags)
       resize = text_resize,
       on_key = flags.editable and text_on_key,
       on_click = flags.on_click,
+      as_text = text_as_text,
    }
    obj:resize()
    return obj
@@ -580,6 +597,7 @@ local function box_replace_child(self, old, new)
    for i, c in ipairs(self.children) do
       if c == old then
          detach(old)
+         new.parent = self
          self.children[i] = new
          self:resize()
          update = true
@@ -639,6 +657,14 @@ function ui.below(t, k)
    end
 end
 
+local function box_as_text(self)
+   local out = {}
+   for i, child in ipairs(self.children) do
+      out[i] = child:as_text()
+   end
+   return table.concat(out, self.type == "vbox" and "\n" or nil)
+end
+
 local function ui_box(flags, children, type)
    flags = flags or E
    local obj = {
@@ -675,6 +701,7 @@ local function ui_box(flags, children, type)
       add_children_below = box_add_children_below,
       remove_n_children_at = box_remove_n_children_at,
       replace_child = box_replace_child,
+      as_text = box_as_text,
    }
 
    for _, child in ipairs(obj.children) do

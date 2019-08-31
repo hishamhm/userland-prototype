@@ -44,7 +44,7 @@ local function new_cell(self, direction)
       r = 1
    end
    local id = c .. r
-   flux.set_mode(flux.register(id, column.data.add_cell(column, direction)), "spreadsheet")
+   return flux.set_mode(flux.register(id, column.data.add_cell(column, direction)), "spreadsheet")
 end
 
 local function add_output(cell)
@@ -90,7 +90,9 @@ local function eval_formula(formula, cell, trigger_object)
          depends[c] = true
          local output = ui.below(c, "output")
          if output and output.children[1] then
-            return output.children[1].text
+            if output.children[1].as_text then
+               return output.children[1]:as_text()
+            end
          end
          local prompt = ui.below(c, "prompt")
          if prompt then
@@ -105,11 +107,11 @@ local function eval_formula(formula, cell, trigger_object)
 
    if trigger_object and not depends[trigger_object] then
       -- this triggering was unnecessary; unlink cells:
-      flux.disconnect(trigger_object, cell)
+      flux.undepend(trigger_object, cell)
    end
 
    for k, _ in pairs(depends) do
-      flux.connect(k, cell)
+      flux.depend(k, cell)
    end
 
    return result
@@ -138,14 +140,14 @@ function spreadsheet.on_key(cell, text)
    local prompt = ui.below(cell, "prompt")
    if text == "Down" or text == "Return" then
       flux.eval(cell)
+
       local next = ui.next_sibling(cell)
-      if next then
-         ui.set_focus(ui.below(next, "prompt"))
-      else
-         if prompt.text ~= "" then
-            new_cell(cell, "down")
-         end
+      if not next then
+--         if prompt.text ~= "" then
+            next = new_cell(cell, "down")
+--         end
       end
+      ui.set_focus(ui.below(next, "prompt"))
       return true
    elseif text == "Tab" or text == "Shift Return" then
       flux.eval(cell)
@@ -156,7 +158,8 @@ function spreadsheet.on_key(cell, text)
          ui.set_focus(nextcol.children[n])
       else
          if prompt.text ~= "" then
-            new_cell(cell, "right")
+            local next = new_cell(cell, "right")
+            ui.set_focus(ui.below(next, "prompt"))
          end
       end
       return true
