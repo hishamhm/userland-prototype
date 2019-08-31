@@ -89,7 +89,13 @@ local function eval_formula(formula, cell, trigger_object)
       if c then
          depends[c] = true
          local output = ui.below(c, "output")
+if not output then
+   print(id, "cell value has no output")
+elseif not output.children[1] then
+   print(id, "cell value output has no children")
+end
          if output and output.children[1] then
+print("cell value for ", id, " is ", output.children[1].text, require'inspect'(output.children[1]))
             if output.children[1].as_text then
                return output.children[1]:as_text()
             end

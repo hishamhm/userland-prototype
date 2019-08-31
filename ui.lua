@@ -138,6 +138,7 @@ function ui.image(filename, flags)
    }
    local img, err = Image.load(filename)
    if not img then
+print(err)
       return nil, err
    end
    local w, h = img:getSize()
@@ -146,6 +147,7 @@ function ui.image(filename, flags)
 
    obj.tex, err = rdr:createTextureFromSurface(img)
    if not obj.tex then
+print(err)
       return nil, err
    end
 

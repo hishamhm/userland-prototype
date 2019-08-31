@@ -286,10 +286,12 @@ function formulas.eval(ast, cell_value)
          return tostring(e1) .. tostring(e2)
       end
       e1 = tonumber(e1)
+print(ast.op.op, "e1 = ", e1)
       if not e1 then
          return "?ERR"
       end
       e2 = tonumber(e2)
+print(ast.op.op, "e2 = ", e2)
       if not e2 then
          return "?ERR"
       end

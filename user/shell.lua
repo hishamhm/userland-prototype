@@ -398,6 +398,7 @@ function shell.eval(cell)
    if #input:match("^%s*(.-)%s*$") == 0 then
       return
    end
+print("will eval ", cell, input)
 
    input = input:gsub("$([A-Z0-9$]+)", function(var)
       local ref = flux.get(var)
@@ -414,6 +415,7 @@ function shell.eval(cell)
       end
       return var
    end)
+print("will eval ", cell, input)
 
    cell.data = cell.data or {}
 
@@ -477,6 +479,7 @@ function shell.eval(cell)
 
          cell.data.type = "image"
          cell.data.buffer = {}
+print("creating anonymous image")
          return
       end
 
@@ -585,9 +588,14 @@ local function poll_fd(cell, fd, pid, color)
          local output, cont = add_output(cell)
          if output then
             local data = unistd.read(fd, 4096)
+if data then
+   print("read ", #data, "bytes for", cell.data.type)
+end
             if not data or #data == 0 then
                if pid then
+print("no hang", wait.WNOHANG)
                   local ok, status, ecode = wait.wait(pid, wait.WNOHANG)
+print(ok, status, ecode)
                   if ok then
                      if ecode == 0 then
                         cell.border = 0x00cccc
@@ -603,9 +611,11 @@ local function poll_fd(cell, fd, pid, color)
                   if cell.data.type == "image" then
                      local out = table.concat(cell.data.buffer or {})
                      os.remove("/tmp/foo.jpg")
+print("will write", #out, "bytes")
                      local ifd = io.open("/tmp/foo.jpg", "w"):write(out) -- HACK
                      ifd:close()
                      local output = add_output(cell)
+print("will display result")
                      local img = ui.image("/tmp/foo.jpg")
                      if img then
                         output:remove_n_children_at(1, 1)
@@ -635,10 +645,15 @@ local function poll_fd(cell, fd, pid, color)
             elseif cell.data.type == "image" then
                cell.data.buffer = cell.data.buffer or {}
                table.insert(cell.data.buffer, data)
+--print("receiving image data", #data, string.format("%02x %02x %02x", data:sub(1,1):byte(),data:sub(2,2):byte(),data:sub(3,3):byte()), #(table.concat(cell.data.buffer)), " so far")
+            else
+print("unknown cell data type")
             end
 
             output.scroll_v = output.total_h - output.h
          end
+      else
+         print("has data?", has_data)
       end
    until has_data == 0 or n == 16
 end
