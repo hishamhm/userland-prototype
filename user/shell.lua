@@ -6,6 +6,9 @@ local poll = require("posix.poll")
 local wait = require("posix.sys.wait")
 local posix = require("posix")
 local unistd = require("posix.unistd")
+local signal = require("posix.signal")
+
+signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 local gensym
 do
@@ -357,11 +360,21 @@ local function expand_pipeline(cell, pipeline)
    down_cell(group)
 end
 
+local poll_fd
+
 local function propagate(cell, data)
    for nextcell in flux.each_requirement(cell) do
       local nextpipes = pipes[nextcell]
       if nextpipes then
-         unistd.write(nextpipes.stdin_w, data)
+         -- FIXME stream this incrementally over frames?
+         local blocksize = 8192
+         for i = 1, #data, blocksize do
+            local ok, err, errnum = unistd.write(nextpipes.stdin_w, data:sub(i, i+blocksize-1))
+            if not ok then
+               break
+            end
+            poll_fd(nextcell, nextpipes.stdout_r, nextpipes.pid, 0xffffff)
+         end
       end
    end
 end
@@ -402,6 +415,9 @@ print("will eval ", cell, input)
 
    input = input:gsub("$([A-Z0-9$]+)", function(var)
       local ref = flux.get(var)
+      if not ref then
+         return var
+      end
       local refout = ui.below(ref, "output")
       if not refout then
          refout = ui.below(ref, "prompt")
@@ -576,7 +592,7 @@ print("creating anonymous image")
    end
 end
 
-local function poll_fd(cell, fd, pid, color)
+poll_fd = function(cell, fd, pid, color)
    if not fd then
       return
    end
