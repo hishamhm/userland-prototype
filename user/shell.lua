@@ -327,7 +327,7 @@ local function pipeline_on_key(self, key)
 end
 
 local function expand_pipeline(cell, pipeline)
-   local column = ui.above(cell, "column")
+   local column = assert(ui.above(cell, "column"))
    local cells = {}
    for i, part in ipairs(pipeline) do
       cells[i] = new_cell(cell)
@@ -437,7 +437,7 @@ print("will eval ", cell, input)
    cell.data = cell.data or {}
 
    local pipeline = {}
-   for part in input:gmatch("%s*([^|]*)") do
+   for part in input:gmatch("%s*([^|]+)") do
       table.insert(pipeline, part)
    end
 

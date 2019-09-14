@@ -30,6 +30,10 @@ local function red(color)
    return bit.band(bit.rshift(color, 16), 0xff) / 0xff
 end
 
+local function alpha(color)
+   return (0xff - bit.band(bit.rshift(color, 24), 0xff)) / 0xff
+end
+
 local function utf8_sub(s, i, j)
    return string.sub(s, utf8.offset(s, i), j and utf8.offset(s, j + 1) - 1)
 end
@@ -681,8 +685,7 @@ function ui.on_key(cb)
 end
 
 function ui.quit()
-   -- FIXME
-   update = true
+   love.event.quit()
 end
 
 function ui.fullscreen(mode)
@@ -737,7 +740,7 @@ local draw
 local function box_draw(self, off, clip)
    local offself = offset(self, off)
    if self.fill then
-      love.graphics.setColor(red(self.fill), green(self.fill), blue(self.fill))
+      love.graphics.setColor(red(self.fill), green(self.fill), blue(self.fill), alpha(self.fill))
       love.graphics.rectangle("fill", offself.x, offself.y, offself.w, offself.h)
    end
    if self.border then
@@ -746,7 +749,7 @@ local function box_draw(self, off, clip)
          love.graphics.setScissor()
          glow(offself, color)
       end
-      love.graphics.setColor(red(color), green(color), blue(color))
+      love.graphics.setColor(red(color), green(color), blue(color), alpha(color))
       love.graphics.rectangle("line", offself.x, offself.y, offself.w, offself.h)
       love.graphics.setScissor(clip.x, clip.y, clip.w, clip.h)
    end
@@ -809,7 +812,7 @@ draw = function(obj, off, clip)
       if ok then
          love.graphics.setScissor(r.x, r.y, r.w, r.h)
          local color = obj.parent.focus_fill_color
-         love.graphics.setColor(red(color), green(color), blue(color))
+         love.graphics.setColor(red(color), green(color), blue(color), alpha(color))
          love.graphics.rectangle("fill", r.x, r.y, r.w, r.h)
       end
    end
@@ -827,12 +830,12 @@ draw = function(obj, off, clip)
       --copy_to_rdr(obj, off)
    elseif obj.type == "text" then
       if obj.fill then
-         love.graphics.setColor(red(obj.fill), green(obj.fill), blue(obj.fill))
+         love.graphics.setColor(red(obj.fill), green(obj.fill), blue(obj.fill), alpha(obj.fill))
          love.graphics.rectangle("fill", offobj.x, offobj.y, offobj.w, offobj.h)
       end
       if obj.border then
          local color = obj == focus and obj.focus_border or obj.border
-         love.graphics.setColor(red(color), green(color), blue(color))
+         love.graphics.setColor(red(color), green(color), blue(color), alpha(color))
          love.graphics.rectangle("line", offobj.x, offobj.y, offobj.w, offobj.h)
       end
 
@@ -856,7 +859,7 @@ draw = function(obj, off, clip)
       end
 
       love.graphics.setScissor(clip.x, clip.y, clip.w, clip.h)
-      love.graphics.setColor(red(obj.color), green(obj.color), blue(obj.color))
+      love.graphics.setColor(red(obj.color), green(obj.color), blue(obj.color), alpha(obj.color))
       love.graphics.print(obj.text, offobj.x, offobj.y)
 
       if show_cursor then
@@ -869,12 +872,12 @@ draw = function(obj, off, clip)
       end
    elseif obj.type == "rect" then
       if obj.fill then
-         love.graphics.setColor(red(obj.fill), green(obj.fill), blue(obj.fill))
+         love.graphics.setColor(red(obj.fill), green(obj.fill), blue(obj.fill), alpha(obj.fill))
          love.graphics.rectangle("fill", offobj.x, offobj.y, offobj.w, offobj.h)
       end
       if obj.border then
          local color = obj == focus and obj.focus_border or obj.border
-         love.graphics.setColor(red(color), green(color), blue(color))
+         love.graphics.setColor(red(color), green(color), blue(color), alpha(color))
          love.graphics.rectangle("line", offobj.x, offobj.y, offobj.w, offobj.h)
       end
    elseif obj.type == "vbox" then
