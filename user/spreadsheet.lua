@@ -144,7 +144,7 @@ end
 
 function spreadsheet.on_key(cell, text)
    local prompt = ui.below(cell, "prompt")
-   if text == "Down" or text == "Return" then
+   if text == "down" or text == "return" then
       flux.eval(cell)
 
       local next = ui.next_sibling(cell)
@@ -155,7 +155,7 @@ function spreadsheet.on_key(cell, text)
       end
       ui.set_focus(ui.below(next, "prompt"))
       return true
-   elseif text == "Tab" or text == "Shift Return" then
+   elseif text == "tab" or text == "Shift return" then
       flux.eval(cell)
       local column = ui.above(cell, "column")
       local nextcol = ui.next_sibling(column)

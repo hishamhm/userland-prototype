@@ -46,7 +46,7 @@ end
 
 local function new_cell(cell, direction)
    assert(cell.data.pwd)
-   local column = ui.above(cell, "column")
+   local column = assert(ui.above(cell, "column"))
    return flux.set_mode(column.data.add_cell(column, direction), "shell", cell)
 end
 
@@ -56,6 +56,7 @@ function shell.init(ui_)
 end
 
 function shell.enable(cell, prevcell)
+print("enabled!")
    local prevpwd
    if prevcell then
       prevpwd = prevcell.data.pwd
@@ -149,21 +150,21 @@ local function output_on_key(self, key, is_text, is_repeat, focus)
       return
    end
 
-   if (self.type == "vbox" and key == "Up")
-   or (self.type == "hbox" and key == "Left") then
+   if (self.type == "vbox" and key == "up")
+   or (self.type == "hbox" and key == "left") then
       local prev = ui.previous_sibling(focus)
       if prev then
          ui.set_focus(prev)
       end
       return true
-   elseif (self.type == "vbox" and key == "Down")
-   or (self.type == "hbox" and key == "Right") then
+   elseif (self.type == "vbox" and key == "down")
+   or (self.type == "hbox" and key == "right") then
       local next = ui.next_sibling(focus)
       if next then
          ui.set_focus(next)
       end
       return true
-   elseif key == "Return" and not is_repeat then
+   elseif key == "return" and not is_repeat then
       local prompt = ui.below(ui.above(self, "cell"), "prompt")
       if focus.text then
          prompt:add(focus.text)

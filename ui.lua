@@ -1,25 +1,33 @@
 local ui = {}
 
-local SDL = require("SDL")
-local Image = require("SDL.image")
-local TTF = require("SDL.ttf")
 local util = require("util")
+local utf8 = require("utf8")
+
+local bit = require("bit")
+
+local love = love
 
 local width = 1024
 local height = 600
 local E = {}
 
-local win
-local rdr
-local font
 local root = { type = "root", x = 0, y = 0, children = {} }
 local on_key_cb = function() end
-local running = true
 local focus
 local update = true
 
-local function alpha(color)
-   return (0xff000000 - (color & 0xff000000)) | (color & 0xffffff)
+local font
+
+local function blue(color)
+   return bit.band(color, 0xff) / 0xff
+end
+
+local function green(color)
+   return bit.band(bit.rshift(color, 8), 0xff) / 0xff
+end
+
+local function red(color)
+   return bit.band(bit.rshift(color, 16), 0xff) / 0xff
 end
 
 local function utf8_sub(s, i, j)
@@ -39,9 +47,9 @@ local glow_curve = { 0.80, 0.40, 0.20, 0.10, 0.05 }
 local function glow(rect, color)
    for i = 1, 5 do
       local factor = glow_curve[i]
-      local v = (0xff - math.floor(0xff * factor)) << 24
-      rdr:setDrawColor(alpha(color + v))
-      rdr:drawRect(expand(rect, i))
+      love.graphics.setColor(red(color), green(color), blue(color), factor)
+      local r = expand(rect, i)
+      love.graphics.rectangle("line", r.x, r.y, r.w, r.h)
    end
 end
 
@@ -62,69 +70,18 @@ function ui.get_focus()
    return focus
 end
 
-local function SDL_WINDOWPOS_CENTERED_DISPLAY(n)
-   return 0x2FFF0000 + n
-end
-
 function ui.init()
-   local ret, err = SDL.init()
-   if not ret then
-      error(err)
-   end
-
-   ret, err = TTF.init()
-   if not ret then
-      error(err)
-   end
-
-   ret, err = Image.init({
-      Image.flags.JPG,
-      Image.flags.PNG,
+   love.window.setTitle("Userland")
+   love.window.setMode(width, height, {
+      centered = true,
+      resizable = true,
    })
-   if not ret then
-      error(err)
-   end
 
-   font = TTF.open("DejaVuSansMono.ttf", 14)
+   font = love.graphics.newFont("DejaVuSansMono.ttf", 14)
+   love.graphics.setFont(font)
+   love.keyboard.setKeyRepeat(true)
 
-   local _, mx, my = SDL.getMouseState()
-   local mp = { x = mx, y = my }
-   local curr_display = 0
-   for i = 0, math.huge do
-      local rect = SDL.getDisplayBounds(i)
-      if not rect then
-         break
-      end
-      if SDL.pointInRect(mp, rect) then
-         curr_display = i
-         break
-      end
-   end
-   curr_display = 0 -- FIXME
-
-   win, err = SDL.createWindow({
-      title = "Userland",
-      x = SDL_WINDOWPOS_CENTERED_DISPLAY(curr_display),
-      y = SDL_WINDOWPOS_CENTERED_DISPLAY(curr_display),
-      width = width,
-      height = height,
-      flags = { SDL.flags.OpenGL },
-   })
-   if not win then
-      error(err)
-   end
-
-   rdr, err = SDL.createRenderer(win, -1, { SDL.flags.Accelerated })
-   if not rdr then
-      error(err)
-   end
-   rdr:setDrawBlendMode(SDL.blendMode.Blend)
-
-   win:setResizeable(true)
-
-   local w, h = win:getSize()
-   root.w = w
-   root.h = h
+   root.w, root.h = love.window.getMode()
 end
 
 function ui.image(filename, flags)
@@ -155,29 +112,12 @@ print(err)
 end
 
 local function font_size(text)
+   local h = font:getHeight()
    if text == "" then
-      local w, h = font.sizeUtf8(font, " ")
-      w = 1
-      return w, h
+      return 1, h
    else
-      return font.sizeUtf8(font, text)
-   end
-end
-
-local function text_render(self)
-   self.w, self.h = font_size(self.text)
-   if not self.w then
-      return nil, self.h
-   end
-
-   local s, err = font.renderUtf8(font, self.text, "blended", alpha(self.color))
-   if not s then
-      return nil, err
-   end
-
-   self.tex, err = rdr:createTextureFromSurface(s)
-   if not self.tex then
-      return nil, err
+      local w = font:getWidth(text)
+      return w, h
    end
 end
 
@@ -340,34 +280,34 @@ local function text_on_key(self, key, is_text, is_repeat)
          return true
       end
    end
-   if key == "Backspace" then
+   if key == "backspace" then
       self:backspace_char()
       self:resize()
       return true
-   elseif key == "Ctrl Backspace" or key == "Alt Backspace" then
+   elseif key == "Ctrl backspace" or key == "Alt backspace" then
       self:backspace_word()
       self:resize()
       return true
-   elseif key == "Delete" then
+   elseif key == "delete" then
       self:delete_char()
       self:resize()
       return true
-   elseif key == "Ctrl Left" then
+   elseif key == "Ctrl left" then
       self:cursor_move_word(-1)
       return true
-   elseif key == "Ctrl Right" then
+   elseif key == "Ctrl right" then
       self:cursor_move_word(1)
       return true
-   elseif key == "Left" then
+   elseif key == "left" then
       self:cursor_move_char(-1)
       return true
-   elseif key == "Right" then
+   elseif key == "right" then
       self:cursor_move_char(1)
       return true
-   elseif key == "Home" then
+   elseif key == "home" then
       self:cursor_set(0)
       return true
-   elseif key == "End" then
+   elseif key == "end" then
       self:cursor_set(math.huge)
       return true
    elseif is_text then
@@ -633,8 +573,13 @@ function ui.above(t, k)
       return t
    end
    if t.parent then
-      return ui.above(t.parent, k)
+      local p, err = ui.above(t.parent, k)
+      if not p then
+         return nil, "< " .. (t.name or t.type) .. " " .. err
+      end
+      return p
    end
+   return nil, "< " .. (t.name or t.type)
 end
 
 function ui.below(t, k)
@@ -736,13 +681,13 @@ function ui.on_key(cb)
 end
 
 function ui.quit()
-   running = false
+   -- FIXME
    update = true
 end
 
 function ui.fullscreen(mode)
-   win:setFullscreen(mode and SDL.window.Desktop or 0)
-   local w, h = win:getSize()
+   love.window.setFullscreen(mode)
+   local w, h = love.window.getMode()
    root.w = w
    root.h = h
    update = true
@@ -778,13 +723,13 @@ function ui.next_sibling(self)
 end
 
 local ismod = {
-   [SDL.key.LeftControl] = true,
-   [SDL.key.LeftAlt] = true,
-   [SDL.key.LeftShift] = true,
-   [SDL.key.LeftGUI] = true,
-   [SDL.key.RightControl] = true,
-   [SDL.key.RightAlt] = true,
-   [SDL.key.RightShift] = true,
+   ["lctrl"] = true,
+   ["lalt"] = true,
+   ["lshift"] = true,
+   ["lgui"] = true,
+   ["rctrl"] = true,
+   ["ralt"] = true,
+   ["rshift"] = true,
 }
 
 local draw
@@ -792,18 +737,18 @@ local draw
 local function box_draw(self, off, clip)
    local offself = offset(self, off)
    if self.fill then
-      rdr:setDrawColor(alpha(self.fill)) -- wat
-      rdr:fillRect(offself)
+      love.graphics.setColor(red(self.fill), green(self.fill), blue(self.fill))
+      love.graphics.rectangle("fill", offself.x, offself.y, offself.w, offself.h)
    end
    if self.border then
       local color = (self == focus or self == focus.parent) and self.focus_border or self.border
       if self == focus or self == focus.parent then
-         rdr:setClipRect(root)
+         love.graphics.setScissor()
          glow(offself, color)
       end
-      rdr:setDrawColor(alpha(color))
-      rdr:drawRect(offself)
-      rdr:setClipRect(clip)
+      love.graphics.setColor(red(color), green(color), blue(color))
+      love.graphics.rectangle("line", offself.x, offself.y, offself.w, offself.h)
+      love.graphics.setScissor(clip.x, clip.y, clip.w, clip.h)
    end
    offself.y = offself.y - self.scroll_v
    offself.x = offself.x - self.scroll_h
@@ -818,11 +763,34 @@ local function box_draw(self, off, clip)
    end
 end
 
-local function copy_to_rdr(obj, off)
-   if obj.tex then
-      local src = { x = 0, y = 0, w = obj.w, h = obj.h }
-      rdr:copy(obj.tex, src, offset(obj, off))
+--local function copy_to_rdr(obj, off)
+--   if obj.tex then
+--      local src = { x = 0, y = 0, w = obj.w, h = obj.h }
+--      rdr:copy(obj.tex, src, offset(obj, off))
+--   end
+--end
+
+local function intersect_rect(r1, r2)
+--print("intersect ", r1.x.."x"..r1.y.."+"..r1.w.."+"..r1.h, r2.x.."x"..r2.y.."+"..r2.w.."+"..r2.h)
+   if r1.x + r1.w - 1 < r2.x
+   or r2.x + r2.w - 1 < r1.x
+   or r1.y + r1.h - 1 < r2.y
+   or r2.y + r2.h - 1 < r1.y
+   then
+      return false
    end
+   local x1 = math.max(r1.x, r2.x)
+   local x2 = math.min(r1.x + r1.w - 1, r2.x + r2.w - 1)
+   local y1 = math.max(r1.y, r2.y)
+   local y2 = math.min(r1.y + r1.h - 1, r2.y + r2.h - 1)
+   local res = {
+      x = x1,
+      y = y1,
+      w = x2 - x1,
+      h = y2 - y1,
+   }
+--print("res ", res.x.."x"..res.y.."+"..res.w.."+"..res.h)
+   return true, res
 end
 
 draw = function(obj, off, clip)
@@ -831,41 +799,48 @@ draw = function(obj, off, clip)
    local offobj = offset(obj, off)
    local ok
    local prevclip = clip
-   ok, clip = SDL.intersectRect(clip, offobj)
+   ok, clip = intersect_rect(clip, offobj)
    if not ok then
       return false
    end
 
    if obj == focus and obj.parent.focus_fill_color then
-      local ok, r = SDL.intersectRect(expand(prevclip, -1), offset({ x = 1, y = obj.y, w = obj.parent.w - 2, h = obj.h }, off))
+      local ok, r = intersect_rect(expand(prevclip, -1), offset({ x = 1, y = obj.y, w = obj.parent.w - 2, h = obj.h }, off))
       if ok then
-         rdr:setClipRect(r)
-         rdr:setDrawColor(alpha(obj.parent.focus_fill_color))
-         rdr:fillRect(r)
+         love.graphics.setScissor(r.x, r.y, r.w, r.h)
+         local color = obj.parent.focus_fill_color
+         love.graphics.setColor(red(color), green(color), blue(color))
+         love.graphics.rectangle("fill", r.x, r.y, r.w, r.h)
       end
    end
 
-   rdr:setClipRect(clip)
+
+--print("clip: ", clip.x, clip.y, clip.w, clip.h)
+   love.graphics.setScissor(clip.x, clip.y, clip.w, clip.h)
+
+--do return true end
 
    if obj.type == "image" then
       if not obj.tex then
          obj:render()
       end
-      copy_to_rdr(obj, off)
+      --copy_to_rdr(obj, off)
    elseif obj.type == "text" then
       if obj.fill then
-         rdr:setDrawColor(alpha(obj.fill))
-         rdr:fillRect(offobj)
+         love.graphics.setColor(red(obj.fill), green(obj.fill), blue(obj.fill))
+         love.graphics.rectangle("fill", offobj.x, offobj.y, offobj.w, offobj.h)
       end
       if obj.border then
          local color = obj == focus and obj.focus_border or obj.border
-         rdr:setDrawColor(alpha(color))
-         rdr:drawRect(offobj)
+         love.graphics.setColor(red(color), green(color), blue(color))
+         love.graphics.rectangle("line", offobj.x, offobj.y, offobj.w, offobj.h)
       end
 
       if not obj.tex then
-         obj:render()
+         obj.tex = true
+         obj.w, obj.h = font_size(obj.text)
       end
+
       local show_cursor = obj.editable and (obj == focus or ui.above(obj, "cell") == focus)
       local line
       if show_cursor then
@@ -875,29 +850,32 @@ draw = function(obj, off, clip)
          clip.w = clip.w + 10
          line = { x1 = obj.x + obj.cursor_x + off.x, y1 = obj.y + 1 + off.y, x2 = obj.x + obj.cursor_x + off.x, y2 = obj.y + obj.h - 2 + off.y }
          if focus == obj then
-            rdr:setClipRect(root)
+            love.graphics.setScissor()
             glow({ x = line.x1, y = line.y1, w = 1, h = (line.y2 - line.y1 + 1) }, 0x009999)
          end
       end
-      rdr:setClipRect(clip)
-      copy_to_rdr(obj, off)
+
+      love.graphics.setScissor(clip.x, clip.y, clip.w, clip.h)
+      love.graphics.setColor(red(obj.color), green(obj.color), blue(obj.color))
+      love.graphics.print(obj.text, offobj.x, offobj.y)
+
       if show_cursor then
          if focus == obj then
-            rdr:setDrawColor(alpha(0xffffff))
+            love.graphics.setColor(1, 1, 1)
          else
-            rdr:setDrawColor(alpha(0x009999))
+            love.graphics.setColor(0, 0.6, 0.6)
          end
-         rdr:drawLine(line)
+         love.graphics.line(line.x1, line.y1, line.x2, line.y2)
       end
    elseif obj.type == "rect" then
       if obj.fill then
-         rdr:setDrawColor(alpha(obj.fill))
-         rdr:fillRect(offobj)
+         love.graphics.setColor(red(obj.fill), green(obj.fill), blue(obj.fill))
+         love.graphics.rectangle("fill", offobj.x, offobj.y, offobj.w, offobj.h)
       end
       if obj.border then
          local color = obj == focus and obj.focus_border or obj.border
-         rdr:setDrawColor(alpha(color))
-         rdr:drawRect(offobj)
+         love.graphics.setColor(red(color), green(color), blue(color))
+         love.graphics.rectangle("line", offobj.x, offobj.y, offobj.w, offobj.h)
       end
    elseif obj.type == "vbox" then
       box_draw(obj, off, clip)
@@ -924,18 +902,23 @@ local function run_on_key(key, is_text, is_repeat)
    end
 end
 
+local function point_in_rect(p, r)
+   return p.x >= r.x and p.x <= r.x + r.w - 1
+      and p.y >= r.y and p.y <= r.y + r.h - 1
+end
+
 local function objects_under_mouse(obj, off, rets, p)
    obj = obj or root
    off = off or { x = 0, y = 0 }
    rets = rets or {}
    if not p then
-      local _, x, y = SDL.getMouseState()
+      local x, y = love.mouse.getPosition()
       p = { x = x, y = y }
    end
    if obj.children then
       for _, child in ipairs(obj.children) do
          local offchild = offset(child, off)
-         if SDL.pointInRect(p, offchild) then
+         if point_in_rect(p, offchild) then
             offchild.y = offchild.y - (child.scroll_v or 0)
             offchild.x = offchild.x - (child.scroll_h or 0)
             objects_under_mouse(child, offchild, rets, p)
@@ -947,25 +930,25 @@ local function objects_under_mouse(obj, off, rets, p)
 end
 
 local function draw_background()
-   rdr:setClipRect({ x = 0, y = 0, w = root.w, h = root.h })
+   love.graphics.setScissor(0, 0, root.w, root.h)
 
    local D1 = 200
    local D2 = 100
 
-   rdr:setDrawColor(alpha(0x003333))
+   love.graphics.setColor(0, 0.2, 0.2)
    for i = math.floor(D1/2) - (math.floor(root.children[1].scroll_h / 4) % D2), root.w, D2 do
-      rdr:drawLine({ x1 = i, y1 = 0, x2 = i, y2 = root.h })
+      love.graphics.line(i, 0, i, root.h)
    end
    for i = math.floor(D1/2) - (math.floor(root.children[1].scroll_v / 4) % D2), root.h, D2 do
-      rdr:drawLine({ x1 = 0, y1 = i, x2 = root.w, y2 = i })
+      love.graphics.line(0, i, root.w, i)
    end
 
-   rdr:setDrawColor(alpha(0x007777))
+   love.graphics.setColor(0, 0.5, 0.5)
    for i = math.floor(D1/2) - (math.floor(root.children[1].scroll_h / 2) % D1), root.w, D1 do
-      rdr:drawLine({ x1 = i, y1 = 0, x2 = i, y2 = root.h })
+      love.graphics.line(i, 0, i, root.h)
    end
    for i = math.floor(D1/2) - (math.floor(root.children[1].scroll_v / 2) % D1), root.h, D1 do
-      rdr:drawLine({ x1 = 0, y1 = i, x2 = root.w, y2 = i })
+      love.graphics.line(0, i, root.w, i)
    end
 end
 
@@ -990,6 +973,9 @@ local function mouse_callback(cb_name, x, y)
    end
 end
 
+local modstate = {}
+local mousestate = {}
+
 function ui.run(frame)
    root.on_wheel = function(_, x, y)
       root.children[1]:on_wheel(x, y)
@@ -998,84 +984,98 @@ function ui.run(frame)
       root.children[1]:on_drag(x, y)
    end
 
-   while running do
-      for e in SDL.pollEvent() do
-         if e.type == SDL.event.Quit then
-            running = false
-         elseif e.type == SDL.event.KeyDown then
-            if not ismod[e.keysym.sym] then
-               local k = SDL.getKeyName(e.keysym.sym)
-               local mod = SDL.getModState()
-               local mk = ""
-               if mod[SDL.keymod.LGUI] then
-                  mk = "Win " .. mk
-               end
-               if mod[SDL.keymod.LeftShift] or mod[SDL.keymod.RightShift] then
-                  mk = "Shift " .. mk
-               end
-               if mod[SDL.keymod.LeftAlt] or mod[SDL.keymod.RightAlt] then
-                  mk = "Alt " .. mk
-               end
-               if mod[SDL.keymod.LeftControl] or mod[SDL.keymod.RightControl] then
-                  mk = "Ctrl " .. mk
-               end
-               if (mk ~= "" and mk ~= "Shift ") or #k ~= 1 then
-                  run_on_key(mk .. k, false, e["repeat"])
-               end
-            end
-         elseif e.type == SDL.event.TextInput then
-            run_on_key(e.text, true, e["repeat"])
-         elseif e.type == SDL.event.MouseButtonDown then
-            local objs = objects_under_mouse()
-            for _, obj in ipairs(objs) do
-               if not (obj.focusable == false) then
-                  ui.set_focus(obj)
-                  break
-               end
-            end
-            update = true
-         elseif e.type == SDL.event.MouseButtonUp then
-            mouse_obj = nil
-            mouse_callback("on_click")
-            mouse_obj = nil
-         elseif e.type == SDL.event.MouseWheel then
-            mouse_callback("on_wheel", e.x, e.y)
-         elseif e.type == SDL.event.MouseMotion then
-            if e.state[1] == 1 then
-               mouse_callback("on_drag", e.xrel, e.yrel)
-            else
-               mouse_obj = nil
-            end
-         else
-            local w, h = win:getSize()
-            root.w = w
-            root.h = h
-            root.children[1].max_w = w
-            root.children[1].max_h = h
-            root.children[1]:resize()
-            update = true
+   function love.keyreleased(key, scancode)
+      if ismod[key] then
+         modstate[key] = false
+      end
+   end
+
+   function love.keypressed(key, scancode, isrepeat)
+print("keypressed", key, scancode, isrepeat)
+      if ismod[key] then
+         modstate[key] = true
+      else
+         local mk = ""
+         if modstate["lgui"] then
+            mk = "Win " .. mk
+         end
+         if modstate["lshift"] or modstate["rshift"] then
+            mk = "Shift " .. mk
+         end
+         if modstate["lalt"] or modstate["ralt"] then
+            mk = "Alt " .. mk
+         end
+         if modstate["lctrl"] or modstate["rctrl"] then
+            mk = "Ctrl " .. mk
+         end
+         if (mk ~= "" and mk ~= "Shift ") or #key ~= 1 then
+            run_on_key(mk .. key, false, isrepeat)
          end
       end
+   end
+
+   function love.textinput(text)
+print("textinput", text)
+      run_on_key(text, true, false)
+   end
+
+   function love.mousepressed(x, y, button)
+      mousestate[button] = true
+      local objs = objects_under_mouse()
+      for _, obj in ipairs(objs) do
+         if not (obj.focusable == false) then
+            ui.set_focus(obj)
+            break
+         end
+      end
+      update = true
+   end
+
+   function love.mousereleased(x, y, button)
+      mousestate[button] = false
+      mouse_obj = nil
+      mouse_callback("on_click")
+      mouse_obj = nil
+   end
+
+   function love.wheelmoved(x, y)
+      mouse_callback("on_wheel", x, y)
+   end
+
+   function love.mousemoved(x, y, dx, dy)
+      if mousestate[1] then
+         mouse_callback("on_drag", dx, dy)
+      else
+         mouse_obj = nil
+      end
+   end
+
+   function love.update(dt)
+      local w, h = love.window.getMode()
+      root.w = w
+      root.h = h
+      root.children[1].max_w = w
+      root.children[1].max_h = h
+      root.children[1]:resize()
 
       frame()
+      update = true
+   end
 
+   function love.draw()
       if update then
-         rdr:setDrawColor(alpha(0x000000))
-         rdr:clear()
-
+--         love.graphics.setBackgroundColor(0, 0, 0)
+         love.graphics.clear()
+--
          draw_background()
-
+--
          for _, child in ipairs(root.children) do
             child.parent = root
             draw(child, root, root)
          end
-
-         rdr:present()
-         rdr:present()
          update = false
       end
-
-      SDL.delay(16)
+      love.graphics.setScissor()
    end
 end
 

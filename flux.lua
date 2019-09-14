@@ -44,6 +44,8 @@ function flux.load_modules(dirname, basename)
                   modules[alias] = mod
                end
             end
+         else
+            print(mod)
          end
       end
    end
