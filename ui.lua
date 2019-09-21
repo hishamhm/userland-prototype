@@ -79,6 +79,7 @@ function ui.init()
    love.window.setMode(width, height, {
       centered = true,
       resizable = true,
+      display = love.window.getDisplayCount(),
    })
 
    font = love.graphics.newFont("DejaVuSansMono.ttf", 14)
