@@ -68,6 +68,19 @@ local function add_output(cell)
    return output
 end
 
+function spreadsheet.value(cell)
+   local output = ui.below(cell, "output")
+   if output and output.children[1] then
+      if output.children[1].as_text then
+         return true, output.children[1]:as_text()
+      end
+   end
+   local prompt = ui.below(cell, "prompt")
+   if prompt and prompt.text ~= "" then
+      return true, prompt.text
+   end
+end
+
 local function eval_formula(formula, cell, trigger_object)
    local my_id = cell.data.c .. cell.data.r
    local ast, errs = formulas.parse(formula)
@@ -85,27 +98,11 @@ local function eval_formula(formula, cell, trigger_object)
       if id == my_id then
          return 0 -- LOOP!
       end
-      local c = flux.get(id)
-      if c then
-         depends[c] = true
-         local output = ui.below(c, "output")
-if not output then
-   print(id, "cell value has no output")
-elseif not output.children[1] then
-   print(id, "cell value output has no children")
-end
-         if output and output.children[1] then
-print("cell value for ", id, " is ", output.children[1].text, require'inspect'(output.children[1]))
-            if output.children[1].as_text then
-               return output.children[1]:as_text()
-            end
-         end
-         local prompt = ui.below(c, "prompt")
-         if prompt then
-            return prompt.text
-         end
+      local ok, value = flux.value(id, 0)
+      if ok then
+         depends[flux.get(id)] = true
       end
-      return 0
+      return value
    end
 
    print(require"inspect"(ast))

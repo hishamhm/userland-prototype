@@ -109,7 +109,7 @@ function flux.unrequire(a, b)
    end
 end
 
-function flux.get(name)
+function flux.get(name, fallback)
    return objects[name]
 end
 
@@ -146,6 +146,16 @@ end
 
 function flux.on_key(object, key, is_text, is_repeat)
    return call("on_key", object, key, is_text, is_repeat)
+end
+
+function flux.value(name, fallback)
+   if objects[name] then
+      local ok, value = call("value", objects[name])
+      if ok then
+         return true, value
+      end
+   end
+   return false, fallback
 end
 
 function flux.frame()

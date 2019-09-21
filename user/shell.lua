@@ -675,6 +675,15 @@ print("unknown cell data type")
    until has_data == 0 or n == 16
 end
 
+function shell.value(cell)
+   local output = ui.below(cell, "output")
+   if output and output.children[1] then
+      if output.children[1].as_text then
+         return true, output.children[1]:as_text()
+      end
+   end
+end
+
 function shell.frame()
    for cell, fds in pairs(pipes) do
       poll_fd(cell, fds.stdout_r, fds.pid, 0xffffff)
