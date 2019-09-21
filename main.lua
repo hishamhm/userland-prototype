@@ -178,7 +178,7 @@ local fullscreen = false
 ui.on_key(function(focus, key, is_text, is_repeat)
    print(key)
    if key == "escape" then
-      if focus.name == "cell" then
+      if focus.name == "cell" or focus.name == "columns" or not focus.name then
          ui.quit()
       else
          ui.set_focus(ui.above(focus, "cell"))
