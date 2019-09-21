@@ -695,33 +695,37 @@ function ui.fullscreen(mode)
    update = true
 end
 
-function ui.previous_sibling(self)
+function ui.previous_sibling(self, skip_n)
    -- TODO make not O(n)
-   local prev, cur
-   for i, child in ipairs(self.parent.children) do
+   local cur = 1
+   local children = self.parent.children
+   for i, child in ipairs(children) do
       if child == self then
          cur = i
          break
       end
-      prev = child
    end
-   return prev, cur
+   if cur > 1 then
+      return children[math.max(1, cur - (skip_n or 1))], cur
+   end
 end
 
-function ui.next_sibling(self)
+function ui.next_sibling(self, skip_n)
    -- TODO make not O(n)
-   local next
-   local pick = false
+   local pick = 0
+   local last
    for _, child in ipairs(self.parent.children) do
-      if pick then
-         next = child
-         break
+      if pick == 1 then
+         return child
+      elseif pick > 1 then
+         pick = pick - 1
+         last = child
       end
       if child == self then
-         pick = true
+         pick = skip_n or 1
       end
    end
-   return next
+   return last
 end
 
 local ismod = {

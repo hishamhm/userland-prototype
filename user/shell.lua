@@ -164,6 +164,18 @@ local function output_on_key(self, key, is_text, is_repeat, focus)
          ui.set_focus(next)
       end
       return true
+   elseif (self.type == "vbox" and key == "pageup") then
+      local prev = ui.previous_sibling(focus, 22)
+      if prev then
+         ui.set_focus(prev)
+      end
+      return true
+   elseif (self.type == "vbox" and key == "pagedown") then
+      local next = ui.next_sibling(focus, 22)
+      if next then
+         ui.set_focus(next)
+      end
+      return true
    elseif key == "return" and not is_repeat then
       local prompt = ui.below(ui.above(self, "cell"), "prompt")
       if focus.text then
