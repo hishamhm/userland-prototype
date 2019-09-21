@@ -121,7 +121,10 @@ local function font_size(text)
    if text == "" then
       return 1, h
    else
-      local w = font:getWidth(text)
+      local pok, w = pcall(font.getWidth, font, text) -- catch invalid UTF8
+      if not pok then
+         return 1, h
+      end
       return w, h
    end
 end
@@ -860,7 +863,7 @@ draw = function(obj, off, clip)
 
       love.graphics.setScissor(clip.x, clip.y, clip.w, clip.h)
       love.graphics.setColor(red(obj.color), green(obj.color), blue(obj.color), alpha(obj.color))
-      love.graphics.print(obj.text, offobj.x, offobj.y)
+      pcall(love.graphics.print, obj.text, offobj.x, offobj.y) -- catch invalid UTF8
 
       if show_cursor then
          if focus == obj then
