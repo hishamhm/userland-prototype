@@ -94,36 +94,36 @@ end
 function shell.on_key(cell, key)
    local column = ui.above(cell, "column")
    local prompt = ui.below(cell, "prompt")
-   if key == "Ctrl L" then
+   if key == "Ctrl l" then
       local columns = ui.above(cell, "columns")
       columns:remove_n_children_at(nil, 2)
       column:remove_n_children_at()
       new_cell(cell)
       return true
-   elseif key == "Ctrl M" then
+   elseif key == "Ctrl m" then
       local output = ui.below(cell, "output")
       if output then
          output.max_h = math.min(output.max_h * 2, output.total_h)
          output:resize()
       end
       return true
-   elseif key == "Ctrl N" then
+   elseif key == "Ctrl n" then
       local output = ui.below(cell, "output")
       if output then
          output.max_h = math.max(21, math.floor(output.max_h / 2))
          output:resize()
       end
       return true
-   elseif key == "Ctrl Tab" then
+   elseif key == "Ctrl tab" then
       new_cell(cell, "right")
       return true
-   elseif key == "Ctrl A" then
+   elseif key == "Ctrl a" then
       prompt:cursor_set(0)
       return true
-   elseif key == "Ctrl E" then
+   elseif key == "Ctrl e" then
       prompt:cursor_set(math.huge)
       return true
-   elseif key == "Up" then
+   elseif key == "up" then
       local prevcell, cur = ui.previous_sibling(cell)
       if prevcell then
          if prompt.text == "" and cur == #column.children and prevcell.data.pwd == cell.data.pwd then
@@ -132,7 +132,7 @@ function shell.on_key(cell, key)
          ui.set_focus(prevcell)
       end
       return true
-   elseif key == "Down" then
+   elseif key == "down" then
       local output = ui.below(cell, "output")
       if ui.get_focus() == prompt and output then
          ui.set_focus(output)
