@@ -994,7 +994,6 @@ function ui.run(frame)
    end
 
    function love.keypressed(key, scancode, isrepeat)
-print("keypressed", key, scancode, isrepeat)
       if ismod[key] then
          modstate[key] = true
       else
@@ -1018,7 +1017,6 @@ print("keypressed", key, scancode, isrepeat)
    end
 
    function love.textinput(text)
-print("textinput", text)
       run_on_key(text, true, false)
    end
 
