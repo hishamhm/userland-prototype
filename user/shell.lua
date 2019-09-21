@@ -7,6 +7,8 @@ local wait = require("posix.sys.wait")
 local posix = require("posix")
 local unistd = require("posix.unistd")
 local signal = require("posix.signal")
+local inotify = require("inotify")
+local lfs = require("lfs")
 
 signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
@@ -19,13 +21,13 @@ do
    end
 end
 
-local lfs = require("lfs")
-
 local flux = require("flux")
 
 local syntect = require("syntect")
 
 local pipes = {}
+local inotify_handle
+local inotify_wds = {}
 
 local function normalize(dir)
    dir = dir .. "/"
@@ -52,6 +54,7 @@ end
 
 function shell.init(ui_)
    ui = ui_
+   inotify_handle = inotify.init({ blocking = false })
    return { "$" }
 end
 
@@ -423,6 +426,21 @@ local function make_pipes(cell)
    return fds
 end
 
+local file_type_colors = {
+   ["file"] = 0x999999,
+   ["directory"] = 0x3333ff,
+   ["link"] = 0x339999,
+   ["socket"] = 0x993399,
+   ["named pipe"] = 0x993399,
+   ["char device"] = 0x999933,
+   ["block device"] = 0x999933,
+   ["other"] = 0x777777,
+}
+
+local function insensitive_cmp(a, b)
+   return a:lower() < b:lower()
+end
+
 function shell.eval(cell)
    if cell.data.locked == true then
       return
@@ -436,7 +454,6 @@ function shell.eval(cell)
    if #input:match("^%s*(.-)%s*$") == 0 then
       return
    end
-print("will eval ", cell, input)
 
    input = input:gsub("$([A-Z0-9$]+)", function(var)
       local ref = flux.get(var)
@@ -456,7 +473,6 @@ print("will eval ", cell, input)
       end
       return var
    end)
-print("will eval ", cell, input)
 
    cell.data = cell.data or {}
 
@@ -549,6 +565,56 @@ print("creating anonymous image")
          close_readers(cell)
       end
 
+      return
+   end
+
+   if cmd == "ls" then
+      if arg == "" then
+         arg = cell.data.pwd
+      end
+
+      if cell.data.wd and cell.data.wd_dir ~= arg then
+         cell.data.wd_dir = nil
+         inotify_handle:rmwatch(cell.data.wd)
+         for i, c in ipairs(inotify_wds[cell.data.wd]) do
+            if c == cell then
+               table.remove(inotify_wds[cell.data.wd], i)
+               if #inotify_wds[cell.data.wd] == 0 then
+                  inotify_wds[cell.data.wd] = nil
+               end
+               break
+            end
+         end
+      end
+
+      local output = reset_output(cell)
+      down_cell(cell)
+
+      local out = {}
+
+      local files = {}
+      for f in lfs.dir(arg) do
+         if not f:match("^%.") then
+            table.insert(files, f)
+         end
+      end
+      table.sort(files, insensitive_cmp)
+
+      for _, f in ipairs(files) do
+         local mode = lfs.attributes(arg .. "/" .. f, "mode")
+         output:add_child(ui.text(f, { color = file_type_colors[mode] or 0x999999 }))
+         table.insert(out, f .. "\n")
+      end
+
+      if cell.data.wd_dir ~= arg then
+         cell.data.wd_dir = arg
+         cell.data.wd = inotify_handle:addwatch(arg, inotify.IN_CREATE, inotify.IN_MOVE, inotify.IN_DELETE)
+         inotify_wds[cell.data.wd] = inotify_wds[cell.data.wd] or {}
+         table.insert(inotify_wds[cell.data.wd], cell)
+      end
+
+      propagate(cell, table.concat(out)) -- FIXME these things should be more automatic
+      close_readers(cell)
       return
    end
 
@@ -709,6 +775,26 @@ function shell.frame()
    for cell, fds in pairs(pipes) do
       poll_fd(cell, fds.stdout_r, fds.pid, 0xffffff)
       poll_fd(cell, fds.stderr_r, fds.pid, 0xff7777)
+   end
+
+   local to_fire
+   for ev in inotify_handle:events() do
+--      print("EVENT", "--------------")
+--      for k,v in pairs(ev) do
+--         print("EVENT", k,v)
+--      end
+--      print("EVENT", "--------------")
+      if ev.mask ~= inotify.IN_IGNORED then
+         to_fire = to_fire or {}
+         for _, cell in ipairs(inotify_wds[ev.wd]) do
+            table.insert(to_fire, cell)
+         end
+      end
+   end
+   if to_fire then
+      for _, cell in ipairs(to_fire) do
+         flux.eval(cell)
+      end
    end
 end
 
