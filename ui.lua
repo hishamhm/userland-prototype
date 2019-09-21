@@ -98,20 +98,15 @@ function ui.image(filename, flags)
       w = flags.w,
       h = flags.h,
    }
-   local img, err = Image.load(filename)
-   if not img then
-print(err)
+   local f, err = io.open(filename, "rb")
+   if not f then
       return nil, err
    end
-   local w, h = img:getSize()
+   local img, err = love.graphics.newImage(love.filesystem.newFileData(f:read("*a"), ""))
+   local w, h = img:getDimensions()
    obj.w = obj.w or w
    obj.h = obj.h or h
-
-   obj.tex, err = rdr:createTextureFromSurface(img)
-   if not obj.tex then
-print(err)
-      return nil, err
-   end
+   obj.img = img
 
    return obj
 end
@@ -827,10 +822,8 @@ draw = function(obj, off, clip)
 --do return true end
 
    if obj.type == "image" then
-      if not obj.tex then
-         obj:render()
-      end
-      --copy_to_rdr(obj, off)
+      love.graphics.setColor(1, 1, 1, 1)
+      love.graphics.draw(obj.img, off.x, off.y)
    elseif obj.type == "text" then
       if obj.fill then
          love.graphics.setColor(red(obj.fill), green(obj.fill), blue(obj.fill), alpha(obj.fill))
