@@ -94,7 +94,15 @@ end
 function shell.on_key(cell, key)
    local column = ui.above(cell, "column")
    local prompt = ui.below(cell, "prompt")
-   if key == "Ctrl l" then
+
+   if key == "return" or #key == 1 or key:match("backspace") or key:match("delete") then
+      if cell.data.locked then
+         cell.data.locked = false
+         cell.border = 0x00cccc
+         cell.focus_border = 0x00ffff
+         cell:resize()
+      end
+   elseif key == "Ctrl l" then
       local columns = ui.above(cell, "columns")
       columns:remove_n_children_at(nil, 2)
       column:remove_n_children_at()
@@ -416,6 +424,10 @@ local function make_pipes(cell)
 end
 
 function shell.eval(cell)
+   if cell.data.locked == true then
+      return
+   end
+
    local context = ui.below(cell, "context")
    local prompt = ui.below(cell, "prompt")
    local output = ui.below(cell, "output")
@@ -617,34 +629,31 @@ poll_fd = function(cell, fd, pid, color)
          local output, cont = add_output(cell)
          if output then
             local data = unistd.read(fd, 4096)
-if data then
-   print("read ", #data, "bytes for", cell.data.type)
-end
             if not data or #data == 0 then
                if pid then
-print("no hang", wait.WNOHANG)
                   local ok, status, ecode = wait.wait(pid, wait.WNOHANG)
-print(ok, status, ecode)
                   if ok then
                      if ecode == 0 then
                         cell.border = 0x00cccc
                         cell.focus_border = 0x00ffff
-                        cell:resize()
+                        if #output.children == 0 then
+                           cell:remove_n_children_at(1, 2)
+                           cell.border = 0x555555
+                           cell.focus_border = 0x666666
+                           cell.data.locked = true
+                        end
                      else
                         cell.border = 0xcc3333
                         cell.focus_border = 0xff3333
-                        cell:resize()
                      end
+                     cell:resize()
                   end
                else
                   if cell.data.type == "image" then
                      local out = table.concat(cell.data.buffer or {})
                      os.remove("/tmp/foo.jpg")
-print("will write", #out, "bytes")
                      local ifd = io.open("/tmp/foo.jpg", "w"):write(out) -- HACK
                      ifd:close()
-                     local output = add_output(cell)
-print("will display result")
                      local img = ui.image("/tmp/foo.jpg")
                      if img then
                         output:remove_n_children_at(1, 1)
