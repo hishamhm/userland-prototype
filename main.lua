@@ -62,7 +62,7 @@ local function prompt_on_key(self, key, is_text, is_repeat)
       ui.below(cell, "context"):set("?")
       cell:remove_n_children_at(nil, 2)
       cell.border = 0x00cccc
-      cell.focus_border = 0x00cccc
+      cell.focus_border = 0x77ffff
       self:resize()
       return true
    end
