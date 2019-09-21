@@ -789,10 +789,9 @@ local function intersect_rect(r1, r2)
    local res = {
       x = x1,
       y = y1,
-      w = x2 - x1,
-      h = y2 - y1,
+      w = x2 - x1 + 1,
+      h = y2 - y1 + 1,
    }
---print("res ", res.x.."x"..res.y.."+"..res.w.."+"..res.h)
    return true, res
 end
 
@@ -1055,14 +1054,17 @@ print("textinput", text)
 
    function love.update(dt)
       local w, h = love.window.getMode()
-      root.w = w
-      root.h = h
-      root.children[1].max_w = w
-      root.children[1].max_h = h
-      root.children[1]:resize()
+      if w ~= root.w or h ~= root.h then
+         root.w = w
+         root.h = h
+         root.children[1].max_w = w
+         root.children[1].max_h = h
+         root.children[1]:resize()
+         update = true
+      end
 
       frame()
-      update = true
+      update = true -- FIXME
    end
 
    function love.draw()
