@@ -102,7 +102,10 @@ function ui.image(filename, flags)
    if not f then
       return nil, err
    end
-   local img, err = love.graphics.newImage(love.filesystem.newFileData(f:read("*a"), ""))
+   local pok, img = pcall(love.graphics.newImage, love.filesystem.newFileData(f:read("*a"), ""))
+   if err then
+      return nil, img
+   end
    local w, h = img:getDimensions()
    obj.w = obj.w or w
    obj.h = obj.h or h

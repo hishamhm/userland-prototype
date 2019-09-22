@@ -694,7 +694,7 @@ poll_fd = function(cell, fd, pid, color)
       if has_data == 1 then
          local output, cont = add_output(cell)
          if output then
-            local data = unistd.read(fd, 4096)
+            local data = unistd.read(fd, 8192)
             if not data or #data == 0 then
                if pid then
                   local ok, status, ecode = wait.wait(pid, wait.WNOHANG)
@@ -720,10 +720,16 @@ poll_fd = function(cell, fd, pid, color)
                      os.remove("/tmp/foo.jpg")
                      local ifd = io.open("/tmp/foo.jpg", "w"):write(out) -- HACK
                      ifd:close()
-                     local img = ui.image("/tmp/foo.jpg")
+                     local img, err = ui.image("/tmp/foo.jpg")
                      if img then
                         output:remove_n_children_at(1, 1)
                         output:add_child(img)
+                        output.scroll_v = 0
+                        output.scroll_h = 0
+                        output:resize()
+                     else
+                        output:remove_n_children_at(1, 1)
+                        output:add_child(ui.text("could not load image: " .. err, { color = 0xff0000 }))
                         output.scroll_v = 0
                         output.scroll_h = 0
                         output:resize()
@@ -756,8 +762,6 @@ print("unknown cell data type")
 
             output.scroll_v = output.total_h - output.h
          end
-      else
-         print("has data?", has_data)
       end
    until has_data == 0 or n == 16
 end
