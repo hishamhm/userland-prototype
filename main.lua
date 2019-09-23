@@ -178,10 +178,15 @@ local fullscreen = false
 ui.on_key(function(focus, key, is_text, is_repeat)
    print(key)
    if key == "escape" then
-      if focus.name == "cell" or focus.name == "columns" or not focus.name then
+      if focus.name == "cell" or focus.name == "column" or focus.name == "columns" or not focus.name then
          ui.quit()
       else
-         ui.set_focus(ui.above(focus, "cell"))
+         local parent_cell = ui.above(focus, "cell")
+         if parent_cell then
+            ui.set_focus(parent_cell)
+         else
+            ui.set_focus(assert(focus.parent))
+         end
       end
    elseif key == "Alt return" and not is_repeat then
       fullscreen = not fullscreen
