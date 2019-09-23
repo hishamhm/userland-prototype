@@ -74,6 +74,8 @@ function ui.get_focus()
    return focus
 end
 
+local window_w, window_h, window_x, window_y, window_display
+
 function ui.init()
    love.window.setTitle("Userland")
    love.window.setMode(width, height, {
@@ -87,6 +89,8 @@ function ui.init()
    love.keyboard.setKeyRepeat(true)
 
    root.w, root.h = love.window.getMode()
+   window_w, window_h = root.w, root.h
+   window_x, window_y, window_display = love.window.getPosition()
 end
 
 function ui.image(filename, flags)
@@ -690,12 +694,35 @@ function ui.quit()
    love.event.quit()
 end
 
+local function resize_root(w, h)
+   if w ~= root.w or h ~= root.h then
+      root.w = w
+      root.h = h
+      root.children[1].max_w = w
+      root.children[1].max_h = h
+      root.children[1]:resize()
+      update = true
+   end
+end
+
 function ui.fullscreen(mode)
-   love.window.setFullscreen(mode)
+   local is_fullscreen = love.window.getFullscreen()
+   if mode == is_fullscreen then
+      return
+   end
+
+   if not is_fullscreen then
+      window_w, window_h = love.window.getMode()
+      window_x, window_y, window_display = love.window.getPosition()
+   end
+
+   local ok = love.window.setFullscreen(mode)
    local w, h = love.window.getMode()
-   root.w = w
-   root.h = h
-   update = true
+   if mode == false and ok then
+      love.window.updateMode(window_w, window_h, { x = window_x, y = window_y, display = window_display })
+      w, h = window_w, window_h
+   end
+   resize_root(w, h)
 end
 
 function ui.previous_sibling(self, skip_n)
@@ -1054,17 +1081,11 @@ function ui.run(frame)
       end
    end
 
-   function love.update(dt)
-      local w, h = love.window.getMode()
-      if w ~= root.w or h ~= root.h then
-         root.w = w
-         root.h = h
-         root.children[1].max_w = w
-         root.children[1].max_h = h
-         root.children[1]:resize()
-         update = true
-      end
+   function love.resize(w, h)
+      resize_root(w, h)
+   end
 
+   function love.update(dt)
       frame()
       update = true -- FIXME
    end
