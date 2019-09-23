@@ -726,6 +726,9 @@ function ui.fullscreen(mode)
 end
 
 function ui.previous_sibling(self, skip_n)
+   if not self.parent then
+      return
+   end
    -- TODO make not O(n)
    local cur = 1
    local children = self.parent.children
@@ -741,6 +744,9 @@ function ui.previous_sibling(self, skip_n)
 end
 
 function ui.next_sibling(self, skip_n)
+   if not self.parent then
+      return
+   end
    -- TODO make not O(n)
    local pick = 0
    local last
