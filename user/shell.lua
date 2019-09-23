@@ -702,7 +702,7 @@ poll_fd = function(cell, fd, pid, color)
                      if ecode == 0 then
                         cell.border = 0x00cccc
                         cell.focus_border = 0x00ffff
-                        if #output.children == 0 then
+                        if #output.children == 0 and not cell.data.quiet then
                            cell:remove_n_children_at(1, 2)
                            cell.border = 0x555555
                            cell.focus_border = 0x666666
