@@ -322,7 +322,6 @@ local function add_styled_lines(cell, output, lines)
             table.insert(regions, ui.text(text, { color = style, focusable = false }))
             if nl == "\n" then
                output:add_child(ui.hbox({ scrollable = false }, regions))
-               flux.propagate(cell)
                regions = {}
             end
          end
@@ -400,6 +399,11 @@ local function propagate(cell, data)
             end
             poll_fd(nextcell, nextpipes.stdout_r, nextpipes.pid, 0xffffff)
          end
+      end
+   end
+   for dep in flux.each_dependent(cell) do
+      if not pipes[dep] then
+         flux.eval(dep, cell)
       end
    end
 end
