@@ -4,6 +4,27 @@ local lexer = {}
 -- Lexer (taken from tl lexer)
 --------------------------------------------------------------------------------
 
+local lex_decimal_start = {}
+for c = string.byte("1"), string.byte("9") do
+   lex_decimal_start[string.char(c)] = true
+end
+
+local lex_decimals = {}
+for c = string.byte("0"), string.byte("9") do
+   lex_decimals[string.char(c)] = true
+end
+
+local lex_hexadecimals = {}
+for c = string.byte("0"), string.byte("9") do
+   lex_hexadecimals[string.char(c)] = true
+end
+for c = string.byte("a"), string.byte("f") do
+   lex_hexadecimals[string.char(c)] = true
+end
+for c = string.byte("A"), string.byte("F") do
+   lex_hexadecimals[string.char(c)] = true
+end
+
 function lexer.lex(input)
    local tokens = {}
 
@@ -70,8 +91,11 @@ function lexer.lex(input)
          elseif c:match("[a-zA-Z_$]") then
             state = "word"
             begin_token()
-         elseif c:match("[0-9]") then
-            state = "number"
+         elseif c == "0" then
+            state = "decimal_or_hex"
+            begin_token()
+         elseif lex_decimal_start[c] then
+            state = "decimal_number"
             begin_token()
          elseif c:match("[<>=~]") then
             state = "maybeequals"
@@ -211,20 +235,89 @@ function lexer.lex(input)
             fwd = false
             state = "any"
          end
-      elseif state == "number" then
-         if not c:match("[0-9]") then
-            end_token("number", nil, i - 1)
+      elseif state == "decimal_or_hex" then
+         -- TODO floating point
+         if c == "x" or c == "X" then
+            state = "hex_number"
+         elseif c == "e" or c == "E" then
+            state = "power_sign"
+         elseif lex_decimals[c] then
+            state = "decimal_number"
+         elseif c == "." then
+            state = "decimal_float"
+         else
+            end_token("number", i - 1)
+            fwd = false
+            state = "any"
+         end
+      elseif state == "hex_number" then
+         if c == "." then
+            state = "hex_float"
+         elseif c == "p" or c == "P" then
+            state = "power_sign"
+         elseif not lex_hexadecimals[c] then
+            end_token("number", i - 1)
+            fwd = false
+            state = "any"
+         end
+      elseif state == "hex_float" then
+         if c == "p" or c == "P" then
+            state = "power_sign"
+         elseif not lex_hexadecimals[c] then
+            end_token("number", i - 1)
+            fwd = false
+            state = "any"
+         end
+      elseif state == "decimal_number" then
+         if c == "." then
+            state = "decimal_float"
+         elseif c == "e" or c == "E" then
+            state = "power_sign"
+         elseif not lex_decimals[c] then
+            end_token("number", i - 1)
+            fwd = false
+            state = "any"
+         end
+      elseif state == "decimal_float" then
+         if c == "e" or c == "E" then
+            state = "power_sign"
+         elseif not lex_decimals[c] then
+            end_token("number", i - 1)
+            fwd = false
+            state = "any"
+         end
+      elseif state == "power_sign" then
+         if c == "-" or c == "+" then
+            state = "power"
+         elseif lex_decimals[c] then
+            state = "power"
+         else
+            state = "any" -- FIXME report malformed number
+         end
+      elseif state == "power" then
+         if not lex_decimals[c] then
+            end_token("number", i - 1)
             fwd = false
             state = "any"
          end
       end
    end
 
+   local terminals = {
+      ["word"] = "word",
+      ["decimal_or_hex"] = "number",
+      ["decimal_number"] = "number",
+      ["decimal_float"] = "number",
+      ["hex_number"] = "number",
+      ["hex_float"] = "number",
+      ["power"] = "number",
+   }
+
    if #tokens > 0 then
       local last = tokens[#tokens]
       if last.tk == nil then
-         if state == "word" or state == "number" then
-            end_token(state, nil, i - 1)
+         if terminals[state] then
+            end_token(terminals[state], nil, i - 1)
          else
             end_token("incomplete", nil, i - 1)
          end
