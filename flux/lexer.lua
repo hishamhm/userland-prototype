@@ -46,7 +46,7 @@ function lexer.lex(input)
       table.remove(tokens)
    end
 
-   local function end_token(kind, t, last)
+   local function end_token(kind, last, t)
       assert(type(kind) == "string")
 
       local token = tokens[#tokens]
@@ -116,7 +116,7 @@ function lexer.lex(input)
          if c == "-" then
             state = "maybecomment2"
          else
-            end_token("op", "-")
+            end_token("op", nil, "-")
             fwd = false
             state = "any"
          end
@@ -176,7 +176,7 @@ function lexer.lex(input)
             end_token("op")
             state = "any"
          else
-            end_token("=", nil, i - 1)
+            end_token("=", i - 1)
             fwd = false
             state = "any"
          end
@@ -186,7 +186,7 @@ function lexer.lex(input)
          elseif c == "=" then
             ls_open_lvl = ls_open_lvl + 1
          else
-            end_token("[", nil, i - 1)
+            end_token("[", i - 1)
             fwd = false
             state = "any"
             ls_open_lvl = 0
@@ -212,7 +212,7 @@ function lexer.lex(input)
             end_token("op")
             state = "maybedotdotdot"
          else
-            end_token(".", nil, i - 1)
+            end_token(".", i - 1)
             fwd = false
             state = "any"
          end
@@ -221,7 +221,7 @@ function lexer.lex(input)
             end_token("...")
             state = "any"
          else
-            end_token("op", nil, i - 1)
+            end_token("op", i - 1)
             fwd = false
             state = "any"
          end
@@ -231,7 +231,7 @@ function lexer.lex(input)
          end
       elseif state == "word" then
          if not c:match("[a-zA-Z0-9_]") then
-            end_token("word", nil, i - 1)
+            end_token("word", i - 1)
             fwd = false
             state = "any"
          end
@@ -317,9 +317,9 @@ function lexer.lex(input)
       local last = tokens[#tokens]
       if last.tk == nil then
          if terminals[state] then
-            end_token(terminals[state], nil, i - 1)
+            end_token(terminals[state], i - 1)
          else
-            end_token("incomplete", nil, i - 1)
+            end_token("incomplete", i - 1)
          end
       end
       table.insert(tokens, { y = last.y, x = last.x + #last.tk, tk = "$EOF$", kind = "$EOF$" })
