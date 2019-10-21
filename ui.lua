@@ -106,9 +106,9 @@ function ui.image(filename, flags)
    if not f then
       return nil, err
    end
-   local pok, img = pcall(love.graphics.newImage, love.filesystem.newFileData(f:read("*a"), ""))
-   if err then
-      return nil, img
+   local pok, img, err = pcall(love.graphics.newImage, love.filesystem.newFileData(f:read("*a"), ""))
+   if (not pok) or (not img) then
+      return nil, img or err
    end
    local w, h = img:getDimensions()
    obj.w = obj.w or w
