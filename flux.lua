@@ -135,6 +135,13 @@ function flux.eval(object, trigger_object, loop_ctrl)
 
    call("eval", object, trigger_object)
 
+   flux.propagate(object)
+end
+
+function flux.propagate(object)
+   local loop_ctrl = {}
+   loop_ctrl[object] = true
+
    for req in flux.each_requirement_rev(object) do
       flux.eval(req, object, loop_ctrl)
    end

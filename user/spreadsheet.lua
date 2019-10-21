@@ -99,8 +99,11 @@ local function eval_formula(formula, cell, trigger_object)
          return 0 -- LOOP!
       end
       local ok, value = flux.value(id, 0)
-      if ok then
-         depends[flux.get(id)] = true
+      local dep_id = flux.get(id)
+      if dep_id then
+         --if ok then
+         depends[dep_id] = true
+         --end
       end
       return value
    end
@@ -108,10 +111,10 @@ local function eval_formula(formula, cell, trigger_object)
    print(require"inspect"(ast))
    local result = formulas.eval(ast, cell_value)
 
-   if trigger_object and not depends[trigger_object] then
-      -- this triggering was unnecessary; unlink cells:
-      flux.undepend(trigger_object, cell)
-   end
+--   if trigger_object and not depends[trigger_object] then
+--      -- this triggering was unnecessary; unlink cells:
+--      flux.undepend(trigger_object, cell)
+--   end
 
    for k, _ in pairs(depends) do
       flux.depend(k, cell)

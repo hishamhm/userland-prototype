@@ -61,14 +61,17 @@ function synth.eval(cell, trigger_object)
    end
 
    local ok, frequency = flux.value(f, f)
-   if ok then
-      depends[flux.get(f)] = true
+   local dep_id = flux.get(f)
+   if dep_id then
+--   if ok then
+      depends[dep_id] = true
+--   end
    end
 
-   if trigger_object and not depends[trigger_object] then
-      -- this triggering was unnecessary; unlink cells:
-      flux.undepend(trigger_object, cell)
-   end
+--   if trigger_object and not depends[trigger_object] then
+--      -- this triggering was unnecessary; unlink cells:
+--      flux.undepend(trigger_object, cell)
+--   end
 
    for k, _ in pairs(depends) do
       flux.depend(k, cell)
@@ -83,12 +86,12 @@ function synth.eval(cell, trigger_object)
             cell.data.source:setLooping(false)
             love.audio.stop(cell.data.source)
          end
-         if frequency > 0 then
+         if frequency > 0 and denver.is_valid(waveform) then
             cell.data.sound_data = denver.get({ waveform = waveform, frequency = frequency })
-            sone.filter(cell.data.sound_data, {
-               type = "lowpass",
-               frequency = 3000,
-            })
+--            sone.filter(cell.data.sound_data, {
+--               type = "lowpass",
+--               frequency = 3000,
+--            })
             cell.data.source = love.audio.newSource(cell.data.sound_data)
             cell.data.waveform = waveform
             cell.data.frequency = frequency
@@ -97,6 +100,10 @@ function synth.eval(cell, trigger_object)
             cell.data.source = nil
             return
          end
+      end
+
+      if not cell.data.source then
+         return
       end
 
       if cell.data.enabled then

@@ -312,7 +312,7 @@ local function split_ansi_colors(data, default_color)
    end
 end
 
-local function add_styled_lines(output, lines)
+local function add_styled_lines(cell, output, lines)
    local regions = {}
    for _, line in ipairs(lines) do
       for i = 1, #line, 2 do
@@ -322,6 +322,7 @@ local function add_styled_lines(output, lines)
             table.insert(regions, ui.text(text, { color = style, focusable = false }))
             if nl == "\n" then
                output:add_child(ui.hbox({ scrollable = false }, regions))
+               flux.propagate(cell)
                regions = {}
             end
          end
@@ -510,7 +511,7 @@ function shell.eval(cell)
 
       local lines, err = syntect.highlight_file(arg)
       if lines then
-         add_styled_lines(output, lines)
+         add_styled_lines(cell, output, lines)
       else
          output:add_child(ui.text(err, { color = 0xff0000 }))
       end
@@ -749,7 +750,7 @@ poll_fd = function(cell, fd, pid, color)
 
             if cell.data.type == "text" then
                if not cell.data.quiet then
-                  add_styled_lines(output, { split_ansi_colors(data, color) })
+                  add_styled_lines(cell, output, { split_ansi_colors(data, color) })
                end
                propagate(cell, data)
             elseif cell.data.type == "image" then
@@ -768,9 +769,10 @@ end
 
 function shell.value(cell)
    local output = ui.below(cell, "output")
-   if output and output.children[1] then
-      if output.children[1].as_text then
-         return true, output.children[1]:as_text()
+   local last = output and output.children[#output.children]
+   if last then
+      if last.as_text then
+         return true, last:as_text()
       end
    end
 end
