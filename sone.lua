@@ -279,7 +279,7 @@ end
 local function biquadFilter(sound, parameters, state)
     -- Sample rate
     local sr = sound:getSampleRate()
-    local ch = sound:getChannels()
+    local ch = sound:getChannelCount()
     -- Center frequency
     assert(parameters.frequency, "Frequency must be specified for filter")
     local freq = clamp(parameters.frequency, 0, sr / 2)
