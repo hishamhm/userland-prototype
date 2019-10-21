@@ -184,6 +184,9 @@ oscillators.brownnoise = function ()
     end
 end
 
+function denver.is_valid(osc_name)
+   return oscillators[osc_name] ~= nil
+end
 
 
 -- Denver, the last dinosaur
