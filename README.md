@@ -1,10 +1,9 @@
 Userland
 ========
 
-Userland is an integrated dataflow environment for end-users. It works by
-allowing users to interact with different modules that implement functionality
-for different domains from a single user interface and combine these modules
-in creative ways.
+Userland is an integrated dataflow environment for end-users. It allows users
+to interact with modules that implement functionality for different domains
+from a single user interface and combine these modules in creative ways.
 
 The UI works as a series of cells. Each cell can be set to a different mode,
 and each mode implemented as a separate module. There are currently three different modules:
