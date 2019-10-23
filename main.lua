@@ -9,7 +9,7 @@ flux.init(ui)
 
 flux.load_modules("user/", "user")
 
-local columns = ui.in_root(ui.hbox({ name = "columns", spacing = 4, scroll_by = 20 }))
+local columns = ui.in_root(ui.hbox({ name = "columns", spacing = 4 }))
 local add_column
 
 local function down(self)
@@ -74,7 +74,7 @@ local function add_cell(column, direction)
    local cell = ui.vbox({
       name = "cell",
       scrollable = false,
-      min_w = 350,
+      min_w = ui.get_font_size() * 25,
       spacing = 4,
       fill = 0x77333333,
       border = 0x00cccc,
@@ -191,6 +191,13 @@ ui.on_key(function(focus, key, is_text, is_repeat)
    elseif key == "Alt return" and not is_repeat then
       fullscreen = not fullscreen
       ui.fullscreen(fullscreen)
+   elseif (key == "Ctrl +" or key == "Ctrl Shift =") then
+      ui.set_font_size(ui.get_font_size() + 1)
+   elseif key == "Ctrl -" then
+      local font_size = ui.get_font_size()
+      if font_size > 5 then
+         ui.set_font_size(font_size - 1)
+      end
    elseif key == "up" then
       local cell = ui.above(focus, "cell")
       if not cell then

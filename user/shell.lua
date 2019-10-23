@@ -196,8 +196,6 @@ local function output_on_key(self, key, is_text, is_repeat, focus)
    end
 end
 
-local TEXT_W = 492 - 8
-
 local function add_output(cell)
    local output = ui.below(cell, "output")
    if output then
@@ -205,11 +203,10 @@ local function add_output(cell)
    end
    output = ui.vbox({
       name = "output",
-      min_w = 340,
-      max_w = TEXT_W * 2,
-      max_h = 450,
+      min_w = ui.get_font_size() * 24 - 8,
+      max_w = ui.get_font_size() * 80,
+      max_h = ui.get_font_size() * 24,
       spacing = 4,
-      scroll_by = 21,
       fill = 0x77000000,
       border = 0x00ffff,
       focus_fill_color = 0x114444,

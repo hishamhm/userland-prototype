@@ -17,6 +17,7 @@ local focus
 local update = true
 
 local font
+local font_size = 14
 
 local function blue(color)
    return bit.band(color, 0xff) / 0xff
@@ -84,13 +85,26 @@ function ui.init()
       display = love.window.getDisplayCount(),
    })
 
-   font = love.graphics.newFont("DejaVuSansMono.ttf", 14)
+   font = love.graphics.newFont("DejaVuSansMono.ttf", font_size)
    love.graphics.setFont(font)
    love.keyboard.setKeyRepeat(true)
 
    root.w, root.h = love.window.getMode()
    window_w, window_h = root.w, root.h
    window_x, window_y, window_display = love.window.getPosition()
+end
+
+function ui.set_font_size(n)
+   font = love.graphics.newFont("DejaVuSansMono.ttf", n)
+   love.graphics.setFont(font)
+   font_size = n
+   for _, child in ipairs(root.children) do
+      child:resize(true)
+   end
+end
+
+function ui.get_font_size()
+   return font_size
 end
 
 function ui.image(filename, flags)
@@ -118,7 +132,7 @@ function ui.image(filename, flags)
    return obj
 end
 
-local function font_size(text)
+local function text_size(text)
    local h = font:getHeight()
    if text == "" then
       return 1, h
@@ -264,7 +278,7 @@ end
 
 local function text_calc_cursor_x(self)
    local s = utf8_sub(self.text, 1, self.cursor)
-   local w = font_size(s)
+   local w = text_size(s)
    self.cursor_x = w + 1
 end
 
@@ -327,13 +341,13 @@ local function text_on_key(self, key, is_text, is_repeat)
    end
 end
 
-local function text_resize(self)
-   self.w, self.h = font_size(self.text)
+local function text_resize(self, propagate_down_only)
+   self.w, self.h = text_size(self.text)
    self.tex = nil
    self.cursor_x = nil
 
    crop(self)
-   if self.parent and self.parent ~= self and self.parent.resize then
+   if (not propagate_down_only) and self.parent and self.parent ~= self and self.parent.resize then
       self.parent:resize()
    end
 end
@@ -363,7 +377,6 @@ function ui.text(text, flags)
 
       cursor = math.max(math.min(flags.cursor or 0, #text), 0),
       text = text,
-      render = text_render,
       add = text_add,
       set = text_set,
       cursor_set = text_cursor_set,
@@ -435,7 +448,6 @@ local function traverse_tree(tree, box, level, seen)
 end
 
 function ui.tree(flags, tree)
-   flags.scroll_by = 17
    local box = ui.vbox(flags)
    traverse_tree(tree, box, 1, {})
    return box
@@ -467,7 +479,7 @@ local function detach(child)
    end
 end
 
-local function box_resize(self)
+local function box_resize(self, propagate_down_only)
    local X, Y, W, H, TW, TH
    if self.type == "vbox" then
       X, Y, W, H, TW, TH = "x", "y", "w", "h", "total_w", "total_h"
@@ -476,6 +488,15 @@ local function box_resize(self)
    end
    local ww = self.margin * 2
    local yy = self.margin
+
+   if propagate_down_only then
+      for _, child in ipairs(self.children) do
+         if child.resize then
+            child:resize(propagate_down_only)
+         end
+      end
+   end
+
    for _, child in ipairs(self.children) do
       child.parent = self
       child[X] = self.margin
@@ -490,8 +511,10 @@ local function box_resize(self)
    self[TW] = ww
    crop(self)
 
-   if self.parent and self.parent ~= self and self.parent.resize then
-      self.parent:resize()
+   if not propagate_down_only then
+      if self.parent and self.parent ~= self and self.parent.resize then
+         self.parent:resize()
+      end
    end
 
    update = true
@@ -559,15 +582,16 @@ local function box_replace_child(self, old, new)
 end
 
 local function box_on_wheel(self, x, y)
+   local scroll_by = math.floor(font_size * 1.5)
    if y == -1 and self.scroll_v < self.total_h - self.h then
-      self.scroll_v = self.scroll_v + self.scroll_by
+      self.scroll_v = self.scroll_v + scroll_by
    elseif y == 1 and self.scroll_v > 0 then
-      self.scroll_v = math.max(0, self.scroll_v - self.scroll_by)
+      self.scroll_v = math.max(0, self.scroll_v - scroll_by)
    end
    if x == -1 and self.scroll_h < self.total_w - self.w then
-      self.scroll_h = self.scroll_h + self.scroll_by
+      self.scroll_h = self.scroll_h + scroll_by
    elseif x == 1 and self.scroll_h > 0 then
-      self.scroll_h = math.max(0, self.scroll_h - self.scroll_by)
+      self.scroll_h = math.max(0, self.scroll_h - scroll_by)
    end
    update = true
 end
@@ -637,7 +661,6 @@ local function ui_box(flags, children, type)
       spacing = flags.spacing or 0,
       scroll_v = 0,
       scroll_h = 0,
-      scroll_by = flags.scroll_by or 5,
       max_w = flags.max_w,
       max_h = flags.max_h,
       min_w = flags.min_w,
@@ -877,7 +900,7 @@ draw = function(obj, off, clip)
 
       if not obj.tex then
          obj.tex = true
-         obj.w, obj.h = font_size(obj.text)
+         obj.w, obj.h = text_size(obj.text)
       end
 
       local show_cursor = obj.editable and (obj == focus or ui.above(obj, "cell") == focus)

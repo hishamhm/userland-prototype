@@ -72,7 +72,6 @@ function debugger.eval(cell)
    cell:remove_n_children_at(1, 2)
    cell:add_child(ui.tree({
       name = "tree",
-      scroll_by = 21,
       min_w = 492,
       max_w = 492,
       max_h = 400,
