@@ -571,6 +571,9 @@ print("creating anonymous image")
    end
 
    if cmd == "ls" then
+      cell.border = 0x00cccc
+      cell.focus_border = 0x77ffff
+
       if arg == "" then
          arg = cell.data.pwd
       end
@@ -578,7 +581,7 @@ print("creating anonymous image")
       if cell.data.wd and cell.data.wd_dir ~= arg then
          cell.data.wd_dir = nil
          inotify_handle:rmwatch(cell.data.wd)
-         for i, c in ipairs(inotify_wds[cell.data.wd]) do
+         for i, c in ipairs(inotify_wds[cell.data.wd] or {}) do
             if c == cell then
                table.remove(inotify_wds[cell.data.wd], i)
                if #inotify_wds[cell.data.wd] == 0 then
@@ -603,6 +606,8 @@ print("creating anonymous image")
          end
       end)
       if not pok then
+         cell.border = 0xcc3333
+         cell.focus_border = 0xff3333
          return
       end
       table.sort(files, insensitive_cmp)
