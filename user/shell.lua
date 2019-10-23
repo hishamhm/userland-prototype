@@ -598,10 +598,15 @@ print("creating anonymous image")
       local out = {}
 
       local files = {}
-      for f in lfs.dir(arg) do
-         if not f:match("^%.") then
-            table.insert(files, f)
+      local pok = pcall(function()
+         for f in lfs.dir(arg) do
+            if not f:match("^%.") then
+               table.insert(files, f)
+            end
          end
+      end)
+      if not pok then
+         return
       end
       table.sort(files, insensitive_cmp)
 
