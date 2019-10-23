@@ -1034,26 +1034,35 @@ function ui.run(frame)
          modstate[key] = true
       else
          local mk = ""
+         local trigger = false
          if modstate["lgui"] then
             mk = "Win " .. mk
+            trigger = true
          end
          if modstate["lshift"] or modstate["rshift"] then
             mk = "Shift " .. mk
          end
          if modstate["lalt"] or modstate["ralt"] then
             mk = "Alt " .. mk
+            trigger = true
          end
          if modstate["lctrl"] or modstate["rctrl"] then
             mk = "Ctrl " .. mk
+            trigger = true
          end
-         if (mk ~= "" and mk ~= "Shift ") or #key ~= 1 then
+         if #key ~= 1 then
+            trigger = true
+         end
+         if trigger then
             run_on_key(mk .. key, false, isrepeat)
          end
       end
    end
 
    function love.textinput(text)
-      run_on_key(text, true, false)
+      if not (modstate["lctrl"] or modstate["rctrl"]) then
+         run_on_key(text, true, false)
+      end
    end
 
    function love.mousepressed(x, y, button)
