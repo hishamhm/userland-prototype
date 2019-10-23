@@ -108,7 +108,7 @@ local function eval_formula(formula, cell, trigger_object)
       return value
    end
 
-   print(require"inspect"(ast))
+--   print(require"inspect"(ast))
    local result = formulas.eval(ast, cell_value)
 
 --   if trigger_object and not depends[trigger_object] then
