@@ -582,7 +582,7 @@ print("creating anonymous image")
       return
    end
 
-   if cmd == "ls" then
+   if input == "ls" then
       cell.border = 0x00cccc
       cell.focus_border = 0x77ffff
 
