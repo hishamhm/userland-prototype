@@ -88,6 +88,11 @@ local function abs_position(obj)
 end
 
 function ui.set_focus(obj)
+   local min_h = 8
+   local min_w = 8
+   local max_h = window_h - 8
+   local max_w = window_w - 8
+
    focus = assert(obj)
    adjust_scroll(obj)
    local oldabsx, oldabsy = obj.absx, obj.absy
@@ -95,11 +100,11 @@ function ui.set_focus(obj)
    if absx == oldabsx and absy == oldabsy then
       return
    end
-   if absy + focus.h > window_h then
-      if focus.h < window_h then
-         while obj.parent and absy + focus.h > window_h do
-            if not obj.parent.scrolling_locked then
-               local diff = absy + focus.h - window_h
+   if absy + focus.h > max_h then
+      if focus.h < max_h then
+         while obj.parent and absy + focus.h > max_h do
+            if obj.parent.scroll_v and not obj.parent.scrolling_locked then
+               local diff = absy + focus.h - max_h
                obj.parent.scroll_v = obj.parent.scroll_v + diff
                absy = absy - diff
             end
@@ -107,9 +112,9 @@ function ui.set_focus(obj)
          end
       end
    end
-   if absy < 0 then
-      while obj.parent and absy < 0 do
-         if not obj.parent.scrolling_locked then
+   if absy < min_h then
+      while obj.parent and absy < min_h do
+         if obj.parent.scroll_v and not obj.parent.scrolling_locked then
             local diff = absy
             obj.parent.scroll_v = obj.parent.scroll_v + diff
             absy = absy - diff
@@ -117,11 +122,11 @@ function ui.set_focus(obj)
          obj = obj.parent
       end
    end
-   if absx + focus.w > window_w then
-      if focus.w < window_w then
-         while obj.parent and absx + focus.w > window_w do
-            if not obj.parent.scrolling_locked then
-               local diff = absx + focus.w - window_w
+   if absx + focus.w > max_w then
+      if focus.w < max_w then
+         while obj.parent and absx + focus.w > max_w do
+            if obj.parent.scroll_h and not obj.parent.scrolling_locked then
+               local diff = absx + focus.w - max_w
                obj.parent.scroll_h = obj.parent.scroll_h + diff
                absx = absx - diff
             end
@@ -129,9 +134,9 @@ function ui.set_focus(obj)
          end
       end
    end
-   if absx < 0 then
-      while obj.parent and absx < 0 do
-         if not obj.parent.scrolling_locked then
+   if absx < min_w then
+      while obj.parent and absx < min_w do
+         if obj.parent.scroll_h and not obj.parent.scrolling_locked then
             local diff = absx
             obj.parent.scroll_h = obj.parent.scroll_h + diff
             absx = absx - diff
@@ -658,12 +663,12 @@ end
 
 local function box_on_wheel(self, x, y)
    local scroll_by = math.floor(font_size * 1.5)
-   if y == -1 and self.scroll_v < self.total_h - self.h then
+   if y == -1 and self.scroll_v < self.total_h - self.y then
       self.scroll_v = self.scroll_v + scroll_by
    elseif y == 1 and self.scroll_v > 0 then
       self.scroll_v = math.max(0, self.scroll_v - scroll_by)
    end
-   if x == -1 and self.scroll_h < self.total_w - self.w then
+   if x == -1 and self.scroll_h < self.total_w - self.x then
       self.scroll_h = self.scroll_h + scroll_by
    elseif x == 1 and self.scroll_h > 0 then
       self.scroll_h = math.max(0, self.scroll_h - scroll_by)
