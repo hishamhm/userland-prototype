@@ -51,6 +51,13 @@ end
 
 function synth.eval(cell, trigger_object)
    local prompt = assert(ui.below(cell, "prompt"))
+
+   if prompt.text == "" then
+      cell.border = 0x00cccc
+      cell.focus_border = 0x77ffff
+      return
+   end
+
    local w, f = prompt.text:match("~%s*(%S+)%s+(%S+)")
 
    local depends = {}
@@ -98,11 +105,12 @@ function synth.eval(cell, trigger_object)
             cell.data.enabled = true
          else
             cell.data.source = nil
-            return
          end
       end
 
       if not cell.data.source then
+         cell.border = 0xff0000
+         cell.focus_border = 0xff7777
          return
       end
 
@@ -117,6 +125,9 @@ function synth.eval(cell, trigger_object)
          cell.border = 0x00cccc
          cell.focus_border = 0x77ffff
       end
+   else
+      cell.border = 0xff0000
+      cell.focus_border = 0xff7777
    end
 end
 
