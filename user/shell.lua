@@ -683,12 +683,10 @@ print("creating anonymous image")
       unistd.dup2(fds.stdout_w, unistd.STDOUT_FILENO)
       unistd.dup2(fds.stderr_w, unistd.STDERR_FILENO)
       local cd_to = ""
-      local cd_done = ""
       if cell.data.pwd then
          cd_to = "cd " .. cell.data.pwd .. "; "
-         cd_done = ""
       end
-      local ok, err, ecode = os.execute(cd_to .. input .. cd_done)
+      local ok, err, ecode = os.execute(cd_to .. input)
       unistd.close(unistd.STDIN_FILENO)
       unistd.close(unistd.STDOUT_FILENO)
       unistd.close(unistd.STDERR_FILENO)
