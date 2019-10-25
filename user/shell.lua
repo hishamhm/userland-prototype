@@ -318,7 +318,7 @@ local function add_styled_lines(cell, output, lines)
             text = expand_tabs(text) -- FIXME this won't expand correctly, it's too late
             table.insert(regions, ui.text(text, { color = style, focusable = false }))
             if nl == "\n" then
-               output:add_child(ui.hbox({ scrollable = false }, regions))
+               output:add_child(ui.hbox({ scrolling_locked = true }, regions))
                regions = {}
             end
          end
@@ -367,7 +367,7 @@ local function expand_pipeline(cell, pipeline)
       data = {
          pwd = cell.data.pwd,
       },
-      scrollable = false,
+      scrolling_locked = true,
       margin = 5,
       spacing = 10,
       border = 0x789abc,

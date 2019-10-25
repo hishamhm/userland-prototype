@@ -7,17 +7,20 @@ local bit = require("bit")
 
 local love = love
 
-local width = 1024
-local height = 600
+local INIT_WIDTH = 1024
+local INIT_HEIGHT = 600
+
 local E = {}
 
-local root = { type = "root", x = 0, y = 0, children = {} }
+local root = { type = "root", name = "root", x = 0, y = 0, children = {} }
 local on_key_cb = function() end
 local focus
 local update = true
 
 local font
 local font_size = 14
+
+local window_w, window_h, window_x, window_y, window_display
 
 local function blue(color)
    return bit.band(color, 0xff) / 0xff
@@ -58,14 +61,82 @@ local function glow(rect, color)
    end
 end
 
+local function adjust_scroll(obj)
+   if obj.parent and obj.parent.scroll_v then
+      if obj.y - obj.parent.scroll_v < 0 then
+         obj.parent.scroll_v = obj.y
+      end
+      if obj.y - obj.parent.scroll_v + obj.h > obj.parent.h then
+         obj.parent.scroll_v = obj.y - obj.parent.h + obj.h
+      end
+   end
+end
+
+local function abs_position(obj)
+   if obj.parent then
+      local abspx, abspy = abs_position(obj.parent)
+      local absx = obj.x - (obj.parent.scroll_h or 0) + abspx
+      local absy = obj.y - (obj.parent.scroll_v or 0) + abspy
+      obj.absx = absx
+      obj.absy = absy
+      return absx, absy
+   else
+      obj.absx = obj.x
+      obj.absy = obj.y
+      return obj.x, obj.y
+   end
+end
+
 function ui.set_focus(obj)
    focus = assert(obj)
-   if focus.parent and focus.parent.scroll_v then
-      if focus.y - focus.parent.scroll_v < 0 then
-         focus.parent.scroll_v = focus.y
+   adjust_scroll(obj)
+   local oldabsx, oldabsy = obj.absx, obj.absy
+   local absx, absy = abs_position(focus)
+   if absx == oldabsx and absy == oldabsy then
+      return
+   end
+   if absy + focus.h > window_h then
+      if focus.h < window_h then
+         while obj.parent and absy + focus.h > window_h do
+            if not obj.parent.scrolling_locked then
+               local diff = absy + focus.h - window_h
+               obj.parent.scroll_v = obj.parent.scroll_v + diff
+               absy = absy - diff
+            end
+            obj = obj.parent
+         end
       end
-      if focus.y - focus.parent.scroll_v + focus.h > focus.parent.h then
-         focus.parent.scroll_v = focus.y - focus.parent.h + focus.h
+   end
+   if absy < 0 then
+      while obj.parent and absy < 0 do
+         if not obj.parent.scrolling_locked then
+            local diff = absy
+            obj.parent.scroll_v = obj.parent.scroll_v + diff
+            absy = absy - diff
+         end
+         obj = obj.parent
+      end
+   end
+   if absx + focus.w > window_w then
+      if focus.w < window_w then
+         while obj.parent and absx + focus.w > window_w do
+            if not obj.parent.scrolling_locked then
+               local diff = absx + focus.w - window_w
+               obj.parent.scroll_h = obj.parent.scroll_h + diff
+               absx = absx - diff
+            end
+            obj = obj.parent
+         end
+      end
+   end
+   if absx < 0 then
+      while obj.parent and absx < 0 do
+         if not obj.parent.scrolling_locked then
+            local diff = absx
+            obj.parent.scroll_h = obj.parent.scroll_h + diff
+            absx = absx - diff
+         end
+         obj = obj.parent
       end
    end
    update = true
@@ -75,11 +146,9 @@ function ui.get_focus()
    return focus
 end
 
-local window_w, window_h, window_x, window_y, window_display
-
 function ui.init()
    love.window.setTitle("Userland")
-   love.window.setMode(width, height, {
+   love.window.setMode(INIT_WIDTH, INIT_HEIGHT, {
       centered = true,
       resizable = true,
       display = love.window.getDisplayCount(),
@@ -430,7 +499,7 @@ end
 local function traverse_tree(tree, box, level, seen)
    seen[tree] = true
    for k, v in util.sortedpairs(tree) do
-      local line = ui.hbox({ scrollable = false, data = { level = level } })
+      local line = ui.hbox({ scrolling_locked = true, data = { level = level } })
       for _ = 1, level - 1 do
          line:add_child(ui.text("   "))
       end
@@ -661,6 +730,7 @@ local function ui_box(flags, children, type)
       spacing = flags.spacing or 0,
       scroll_v = 0,
       scroll_h = 0,
+      scrolling_locked = flags.scrolling_locked,
       max_w = flags.max_w,
       max_h = flags.max_h,
       min_w = flags.min_w,
@@ -673,8 +743,8 @@ local function ui_box(flags, children, type)
       data = flags.data,
 
       resize = box_resize,
-      on_wheel = flags.scrollable ~= false and box_on_wheel,
-      on_drag = flags.scrollable ~= false and box_on_drag,
+      on_wheel = (not flags.scrolling_locked) and box_on_wheel,
+      on_drag = (not flags.scrolling_locked) and box_on_drag,
       on_click = flags.on_click,
       on_key = flags.on_key,
       add_child = box_add_child,
@@ -1130,6 +1200,7 @@ function ui.run(frame)
 
    function love.draw()
       if update then
+         ui.set_focus(focus)
 --         love.graphics.setBackgroundColor(0, 0, 0)
          love.graphics.clear()
 --

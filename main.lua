@@ -73,7 +73,7 @@ end
 local function add_cell(column, direction)
    local cell = ui.vbox({
       name = "cell",
-      scrollable = false,
+      scrolling_locked = true,
       min_w = ui.get_font_size() * 25,
       spacing = 4,
       fill = 0x77333333,
@@ -131,7 +131,7 @@ local function add_cell(column, direction)
          return true
       end,
    }, {
-      ui.hbox({ scrollable = false }, {
+      ui.hbox({ name = "promptline", scrolling_locked = true }, {
          ui.text("?", {
             name = "context",
             color = 0x00ffff,
@@ -160,7 +160,7 @@ end
 add_column = function()
    return columns:add_child(ui.vbox({
       name = "column",
-      scrollable = false,
+      scrolling_locked = true,
       spacing = 4,
       data = {
          name = string.char(64 + #columns.children + 1),
