@@ -36,7 +36,7 @@ local inotify_wds = {}
 
 local function normalize(dir)
    dir = dir .. "/"
-   dir = dir:gsub("//", "/"):gsub("/[^/]+/%.%./", "/"):gsub("//", "/")
+   dir = dir:gsub("//", "/"):gsub("/[^/]+/%.%./", "/"):gsub("^/%.%./", "/"):gsub("/%./", "/"):gsub("//", "/")
    return dir
 end
 
