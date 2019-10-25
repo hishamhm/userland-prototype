@@ -30,6 +30,7 @@ function spreadsheet.enable(cell)
    cell.data.r = r
    flux.register(cell_name, cell)
    ui.below(cell, "context"):set(cell_name)
+   flux.eval(cell)
    return true
 end
 

@@ -169,9 +169,7 @@ end
 function flux.set_mode(object, mode, creator_object)
    if modules[mode] then
       modes[object] = mode
-      if call("enable", object, creator_object) then
-         flux.eval(object)
-      end
+      call("enable", object, creator_object)
    end
    return object
 end
