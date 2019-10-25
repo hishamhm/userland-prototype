@@ -650,6 +650,12 @@ local function box_replace_child(self, old, new)
    end
 end
 
+local function box_remove_child(self, child)
+   detach(child)
+   self:resize()
+   update = true
+end
+
 local function box_on_wheel(self, x, y)
    local scroll_by = math.floor(font_size * 1.5)
    if y == -1 and self.scroll_v < self.total_h - self.h then
@@ -751,6 +757,7 @@ local function ui_box(flags, children, type)
       add_children_below = box_add_children_below,
       remove_n_children_at = box_remove_n_children_at,
       replace_child = box_replace_child,
+      remove_child = box_remove_child,
       as_text = box_as_text,
    }
 

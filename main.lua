@@ -15,19 +15,20 @@ local add_column
 local function down(self)
    local cell = ui.above(self, "cell")
    if not cell then
-      return
+      return false
    end
    local column = ui.above(cell, "column")
    local next = ui.next_sibling(cell)
    if not next then
       local prompt = ui.below(cell, "prompt")
       if prompt.text == "" then
-         return
+         return false
       end
       next = column.data.add_cell(column)
       flux.set_mode(next, flux.get_mode(cell), cell)
    end
    ui.set_focus(next)
+   return true
 end
 
 local function right(self)
@@ -54,15 +55,19 @@ local function right(self)
    end
 end
 
+local function reset_cell(cell)
+   flux.set_mode(cell, "default")
+   ui.below(cell, "prompt"):set("")
+   ui.below(cell, "context"):set("?")
+   cell:remove_n_children_at(nil, 2)
+   cell.border = 0x00cccc
+   cell.focus_border = 0x77ffff
+end
+
 local function prompt_on_key(self, key, is_text, is_repeat)
    local cell = ui.above(self, "cell")
    if key == "Ctrl backspace" then
-      flux.set_mode(cell, "default")
-      ui.below(cell, "prompt"):set("")
-      ui.below(cell, "context"):set("?")
-      cell:remove_n_children_at(nil, 2)
-      cell.border = 0x00cccc
-      cell.focus_border = 0x77ffff
+      reset_cell(cell)
       self:resize()
       return true
    end
@@ -120,6 +125,15 @@ local function add_cell(column, direction)
 --            end
 --            return true
 --
+         elseif key == "Ctrl delete" then
+            if #column.children > 1 then
+               if down(cell) then
+                  column:remove_child(cell)
+               end
+            else
+               reset_cell(cell)
+               cell:resize()
+            end
          elseif is_text or key == "backspace" or key == "Ctrl return" or key == "Ctrl backspace" then
             prompt:on_key(key, is_text, is_repeat)
             ui.set_focus(prompt)
@@ -178,7 +192,7 @@ local fullscreen = false
 ui.on_key(function(focus, key, is_text, is_repeat)
    print(key)
    if key == "escape" then
-      if focus.name == "cell" or focus.name == "column" or focus.name == "columns" or not focus.name then
+      if focus.name == "cell" or focus.name == "column" or focus.name == "columns" or focus.name == "root" then
          ui.quit()
       else
          local parent_cell = ui.above(focus, "cell")
