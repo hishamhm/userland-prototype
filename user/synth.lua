@@ -140,9 +140,10 @@ function synth.on_key(cell, text)
    elseif text == "down" then
       local next = ui.next_sibling(cell)
       if not next then
---         if prompt.text ~= "" then
-            next = new_cell(cell, "down")
---         end
+         if prompt.text == "" then
+            return
+         end
+         next = new_cell(cell, "down")
       end
       ui.set_focus(ui.below(next, "prompt"))
       return true
