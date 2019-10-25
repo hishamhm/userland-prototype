@@ -45,7 +45,10 @@ function flux.load_modules(dirname, basename)
                end
             end
          else
-            print(mod)
+           io.stderr:write("----------------------------------------\n")
+           io.stderr:write("Error loading module " .. name .. ":\n")
+           io.stderr:write(mod .. "\n")
+           io.stderr:write("----------------------------------------\n")
          end
       end
    end
