@@ -150,8 +150,9 @@ function shell.on_key(cell, key)
       return true
    elseif key == "down" then
       local output = ui.below(cell, "output")
-      if ui.get_focus() == prompt and output then
-         ui.set_focus(output)
+      local output_child = output and output.children[1]
+      if output_child then
+         ui.set_focus(output_child)
          output.scroll_v = 0
          output.scroll_h = 0
          cell:resize()
