@@ -12,6 +12,11 @@ local lfs = require("lfs")
 
 signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
+local aliases = {
+   ["l"] = "ls -1 --color",
+   [".."] = "cd ..",
+}
+
 local gensym
 do
    local g = 0
@@ -489,6 +494,12 @@ function shell.eval(cell)
 
    local nextcmd = true
    local cmd, arg = input:match("^%s*([^%s]+)%s*(.-)%s*$")
+
+   if aliases[cmd] then
+      input = string.gsub(input, cmd, aliases[cmd], 1)
+      cmd, arg = input:match("^%s*([^%s]+)%s*(.-)%s*$")
+   end
+
 
    if cmd == "quiet" then
       cmd, arg = arg:match("^%s*([^%s]+)%s*(.-)%s*$")
