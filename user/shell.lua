@@ -167,6 +167,21 @@ local function output_on_key(self, key, is_text, is_repeat, focus)
       return
    end
 
+   self.data = self.data or {}
+
+   -- TODO move this behavior to a more general ui.textlist widget
+   if is_text then
+      local txt = (self.data.incremental_search or "") .. key
+      self.data.incremental_search = txt
+      for _, c in ipairs(self.children) do
+         if c:as_text():find(txt, 1, true) == 1 then
+            ui.set_focus(c)
+            return true
+         end
+      end
+   end
+   self.data.incremental_search = nil
+
    if (self.type == "vbox" and key == "up")
    or (self.type == "hbox" and key == "left") then
       local prev = ui.previous_sibling(focus)
