@@ -19,7 +19,7 @@ and each mode implemented as a separate module. There are currently three differ
 
 Pressing Ctrl-Backspace clears the cell mode back to `?`.
 
-[This video](https://studio.youtube.com/video/gla830WPBVU) demonstrates the
+[This video](https://www.youtube.com/watch?v=gla830WPBVU) demonstrates the
 integration of "spreadsheet" and "shell" modules inside Userland.
 
 At [LIVE 2019](https://2019.splashcon.org/home/live-2019) I also gave a live
