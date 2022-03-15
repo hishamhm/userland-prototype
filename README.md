@@ -28,12 +28,13 @@ demo combining the "shell", "spreadsheet" and "synth" modules.
 Current status
 --------------
 
-The project is in its early days, so be aware there are lots of rough edges!
-The current implementation can be considered a prototype/proof-of-concept/MVP
-which I'm using to do rapid experimentation and evolve and stabilize the
-fundamentals of the concept -- though I do want to get this implementation to
-a point where it can be usable as my primary shell for daily use! (At that
-point I'll be able to call the concept proven!)
+This implementation is not under development anymore, as it was a
+prototype/proof-of-concept/MVP which I've successfully used to do
+rapid experimentation and evolve and stabilize the fundamentals of the concept.
+
+I am currently working on a new implementation, which I want to make
+production-ready to the point where it can be primary shell for daily use.
+(At that point I'll be able to really call the concept proven!)
 
 Running
 -------
