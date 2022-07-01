@@ -1,6 +1,19 @@
 Userland
 ========
 
+About this repo
+---------------
+
+This implementation is not under development anymore, as it was a
+prototype/proof-of-concept/MVP which I've successfully used to do
+rapid experimentation and evolve and stabilize the fundamentals of the concept.
+
+I am currently working on a new implementation, which I intend to 
+open-source once it is production-ready.
+
+About Userland
+--------------
+
 Userland is an integrated dataflow environment for end-users. It allows users
 to interact with modules that implement functionality for different domains
 from a single user interface and combine these modules in creative ways.
@@ -24,17 +37,6 @@ integration of "spreadsheet" and "shell" modules inside Userland.
 
 At [LIVE 2019](https://2019.splashcon.org/home/live-2019) I also gave a live
 demo combining the "shell", "spreadsheet" and "synth" modules.
-
-Current status
---------------
-
-This implementation is not under development anymore, as it was a
-prototype/proof-of-concept/MVP which I've successfully used to do
-rapid experimentation and evolve and stabilize the fundamentals of the concept.
-
-I am currently working on a new implementation, which I want to make
-production-ready to the point where it can be primary shell for daily use.
-(At that point I'll be able to really call the concept proven!)
 
 Running
 -------
