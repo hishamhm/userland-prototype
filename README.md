@@ -58,3 +58,24 @@ Install the Lua dependencies for Userland:
 Finally, run `userland`:
 
     $ ./userland
+
+Building with Docker
+--------------------
+
+Have a look at the driver, if your system needs something different from
+xf86_video_intel you may need to edit the Dockerfile.
+
+    $ docker build -t userland .
+
+Running with Docker
+-------------------
+
+You may need to change the user id from 1000 to the one which has access
+to X11.
+
+    $ docker run \
+    -u 1000 \
+    -e DISPLAY=$DISPLAY \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -v /dev:/dev \
+    userland
